@@ -26,3 +26,14 @@ export function midiToNoteName(note: number): string {
 export function defaultStep(): StepData {
   return { note: NOTE_DEFAULT, mode: 'play' };
 }
+
+// Effective loop length: a RESET step ends the loop, so the counter cycles
+// steps 0..(firstReset-1) and the RESET step itself never plays nor consumes
+// clock time. This is the polyrhythm mechanism. A RESET on the very first step
+// is ignored (no usable loop), falling back to the full length.
+export function effectiveLength(track: TrackState): number {
+  for (let i = 0; i < track.length; i++) {
+    if (track.steps[i].mode === 'reset') return i > 0 ? i : track.length;
+  }
+  return track.length;
+}

@@ -1,4 +1,5 @@
 import type { TrackState } from './types';
+import { effectiveLength } from './types';
 
 // Chris Wilson lookahead scheduler pattern.
 // AudioContext.currentTime is the time source; MIDI events are stamped
@@ -121,13 +122,17 @@ export class Scheduler {
         this.nextSteps[ti] = 0;
       }
 
+      const effLen = effectiveLength(tracks[ti]);
       while (this.nextStepTimes[ti] < lookaheadEnd) {
-        const stepIdx = this.nextSteps[ti];
+        // If the effective length shrank live (a RESET was just added past the
+        // current position), wrap back to step 1 immediately.
+        let stepIdx = this.nextSteps[ti];
+        if (stepIdx >= effLen) stepIdx = 0;
         const stepTime = this.nextStepTimes[ti];
 
         this.scheduleStep(tracks[ti], ti, stepIdx, stepTime, stepDuration);
 
-        this.nextSteps[ti] = (stepIdx + 1) % tracks[ti].length;
+        this.nextSteps[ti] = (stepIdx + 1) % effLen;
         this.nextStepTimes[ti] += stepDuration;
       }
     }

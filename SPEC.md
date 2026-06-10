@@ -37,8 +37,10 @@ for live standalone use with hardware synthesizers. Desktop only, Chrome/Edge
      double-click to reset to C3. Range C1–C6, chromatic. Show note name
      under the knob. (Optional per-track scale-quantize toggle is a
      nice-to-have, not v1.)
-  2. **3-position toggle switch** — PLAY / MUTE / RESET. Interaction:
-     tap/click cycles PLAY → MUTE → RESET → PLAY (no dragging required):
+  2. **3-position toggle switch** — laid out like a traffic light:
+     RESET (top, red) / MUTE (middle, yellow) / PLAY (bottom, green).
+     Default is PLAY. Interaction: tap/click toggles upward
+     PLAY → MUTE → RESET and wraps back to PLAY (no dragging required):
      - PLAY: note fires when the playhead hits the step.
      - MUTE: the step consumes clock time but sends nothing (timing preserved).
      - RESET: when the counter REACHES this step, it immediately jumps to
@@ -46,7 +48,8 @@ for live standalone use with hardware synthesizers. Desktop only, Chrome/Edge
        and is the polyrhythm mechanism (e.g. track 1 loops 16, track 2 has
        RESET on step 13 → 12-step loop against 16).
   3. **Step LED** — lit while the playhead is on the step (running-light chase).
-- Steps beyond the effective loop (after a RESET step) render dimmed.
+- The RESET step itself and all steps after it (outside the effective loop)
+  render dimmed.
 
 ### Clock & scheduling (critical — do not use setInterval as the clock)
 - The app is CLOCK MASTER. Internal clock only, no external sync in v1.
@@ -90,8 +93,8 @@ for live standalone use with hardware synthesizers. Desktop only, Chrome/Edge
 - Dark faceplate panels (#2C2C2A), one panel per track, rounded corners,
   generous spacing between panels.
 - Per step, vertically: LED (amber when active), knob (dark with light pointer
-  line), note name, 3-position switch (green dot = PLAY top, gray = MUTE middle,
-  red = RESET bottom), step number.
+  line), note name, 3-position switch (traffic light: red = RESET top,
+  yellow = MUTE middle, green = PLAY bottom), step number.
 - Panel header: track name, MIDI port/channel selectors, length selector
   (8/16/32 buttons), per-track gate-length knob.
 - Global transport bar: RUN/STOP, tempo knob + BPM readout, clock-out port

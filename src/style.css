@@ -250,14 +250,22 @@ html, body {
 
 /* ── Steps container ───────────────────────────────────────────────────── */
 
-.steps-row {
+/* Stacked rows of 16 (length 32 = two rows) */
+.steps-container {
   display: flex;
-  gap: 2px;
+  flex-direction: column;
+  gap: 10px;
   padding: 14px 16px;
 }
 
-/* Gap between groups of 8 within a 16-step row */
-.steps-row .step-cell:nth-child(8) {
+.steps-row {
+  display: flex;
+  gap: 2px;
+}
+
+/* Gap between the two groups of 8 within a row — not after a trailing 8th
+   cell (length 8 = a single group, no gap needed). */
+.steps-row .step-cell:nth-child(8):not(:last-child) {
   margin-right: 12px;
 }
 
@@ -271,6 +279,13 @@ html, body {
   border-radius: 6px;
   background: #282826;
   border: 1px solid #343432;
+}
+
+/* Steps beyond the effective loop (after a RESET step). Greyed out, but still
+   interactive — opacity does not block pointer events, so knobs stay turnable
+   and the note name stays readable. */
+.step-cell.dimmed {
+  opacity: 0.4;
 }
 
 /* ── Step LED ──────────────────────────────────────────────────────────── */
@@ -295,6 +310,15 @@ html, body {
 .knob-svg {
   display: block;
   cursor: ns-resize;
+  touch-action: none;
+  flex-shrink: 0;
+}
+
+/* ── 3-position switch SVG ─────────────────────────────────────────────── */
+
+.switch-svg {
+  display: block;
+  cursor: pointer;
   touch-action: none;
   flex-shrink: 0;
 }

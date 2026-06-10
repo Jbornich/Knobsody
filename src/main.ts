@@ -2,6 +2,7 @@ import './style.css';
 import { MidiManager } from './midi';
 import { Scheduler } from './scheduler';
 import { Knob } from './knob';
+import { Switch } from './switch';
 import { defaultStep, midiToNoteName } from './types';
 import type { TrackState } from './types';
 
@@ -130,9 +131,98 @@ function buildTransport(): HTMLElement {
 // ── Track panel ──────────────────────────────────────────────────────────
 
 let portSelect: HTMLSelectElement;
+let stepsContainer: HTMLElement;
 const ledEls: HTMLDivElement[] = [];
+const cellEls: HTMLDivElement[] = [];
 const knobInstances: Knob[] = [];
 const noteNameEls: HTMLSpanElement[] = [];
+
+// Change the track length, preserving existing step data. The data array only
+// ever grows, so shrinking then re-growing restores the previous steps.
+function setLength(newLen: 8 | 16 | 32): void {
+  while (track.steps.length < newLen) track.steps.push(defaultStep());
+  track.length = newLen;
+  renderSteps();
+}
+
+// (Re)build the step cells into rows of 16 and reset the per-step element
+// arrays. Called on first build and on every length change.
+function renderSteps(): void {
+  ledEls.length = 0;
+  cellEls.length = 0;
+  knobInstances.length = 0;
+  noteNameEls.length = 0;
+  stepsContainer.innerHTML = '';
+
+  const PER_ROW = 16;
+  for (let rowStart = 0; rowStart < track.length; rowStart += PER_ROW) {
+    const row = document.createElement('div');
+    row.className = 'steps-row';
+    const rowEnd = Math.min(rowStart + PER_ROW, track.length);
+    for (let i = rowStart; i < rowEnd; i++) {
+      row.appendChild(buildStepCell(i));
+    }
+    stepsContainer.appendChild(row);
+  }
+  updateDimming();
+}
+
+// Build a single step cell (LED, knob, note name, switch, step number).
+function buildStepCell(i: number): HTMLDivElement {
+  const cell = document.createElement('div');
+  cell.className = 'step-cell';
+  cellEls.push(cell);
+
+  // LED
+  const led = document.createElement('div');
+  led.className = 'step-led';
+  ledEls.push(led);
+  cell.appendChild(led);
+
+  // Knob
+  const knob = new Knob(track.steps[i].note, (note) => {
+    track.steps[i].note = note;
+    noteNameEls[i].textContent = midiToNoteName(note);
+  });
+  knobInstances.push(knob);
+  cell.appendChild(knob.svgEl);
+
+  // Note name
+  const noteName = document.createElement('span');
+  noteName.className = 'step-note';
+  noteName.textContent = midiToNoteName(track.steps[i].note);
+  noteNameEls.push(noteName);
+  cell.appendChild(noteName);
+
+  // 3-position toggle switch (PLAY / MUTE / RESET)
+  const sw = new Switch(track.steps[i].mode, (mode) => {
+    track.steps[i].mode = mode;
+    updateDimming();
+  });
+  cell.appendChild(sw.svgEl);
+
+  // Step number
+  const stepNum = document.createElement('span');
+  stepNum.className = 'step-num';
+  stepNum.textContent = String(i + 1);
+  cell.appendChild(stepNum);
+
+  return cell;
+}
+
+// Steps after the first RESET step fall outside the effective loop; dim them
+// (knobs stay turnable and the note stays visible — only opacity is reduced).
+function updateDimming(): void {
+  let firstReset = -1;
+  for (let i = 0; i < track.length; i++) {
+    if (track.steps[i].mode === 'reset') { firstReset = i; break; }
+  }
+  // firstReset > 0: a RESET on step 1 is ignored (matches effectiveLength).
+  // The RESET step itself is dimmed too — it sits outside the effective loop.
+  for (let i = 0; i < cellEls.length; i++) {
+    cellEls[i].classList.toggle('dimmed', firstReset > 0 && i >= firstReset);
+  }
+}
 
 function populatePorts(): void {
   const outputs = midi.getOutputs();
@@ -198,65 +288,30 @@ function buildTrackPanel(): HTMLElement {
   });
   header.appendChild(chSelect);
 
-  // Length selector (display-only for M1 — hardcoded 8)
+  // Length selector (8 / 16 / 32)
   const lengthGroup = document.createElement('div');
   lengthGroup.className = 'length-group';
   for (const len of [8, 16, 32] as const) {
     const btn = document.createElement('button');
-    btn.className = 'btn-len' + (len === 8 ? ' active' : '');
+    btn.className = 'btn-len' + (len === track.length ? ' active' : '');
     btn.textContent = String(len);
     btn.title = `${len} steps`;
     btn.style.touchAction = 'none';
-    // Length switching deferred to Milestone 2
     btn.addEventListener('pointerdown', () => {
       lengthGroup.querySelectorAll('.btn-len').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
+      setLength(len);
     });
     lengthGroup.appendChild(btn);
   }
   header.appendChild(lengthGroup);
   panel.appendChild(header);
 
-  // Steps row
-  const stepsRow = document.createElement('div');
-  stepsRow.className = 'steps-row';
-
-  for (let i = 0; i < track.length; i++) {
-    const cell = document.createElement('div');
-    cell.className = 'step-cell';
-
-    // LED
-    const led = document.createElement('div');
-    led.className = 'step-led';
-    ledEls.push(led);
-    cell.appendChild(led);
-
-    // Knob
-    const stepIndex = i;
-    const knob = new Knob(track.steps[i].note, (note) => {
-      track.steps[stepIndex].note = note;
-      noteNameEls[stepIndex].textContent = midiToNoteName(note);
-    });
-    knobInstances.push(knob);
-    cell.appendChild(knob.svgEl);
-
-    // Note name
-    const noteName = document.createElement('span');
-    noteName.className = 'step-note';
-    noteName.textContent = midiToNoteName(track.steps[i].note);
-    noteNameEls.push(noteName);
-    cell.appendChild(noteName);
-
-    // Step number
-    const stepNum = document.createElement('span');
-    stepNum.className = 'step-num';
-    stepNum.textContent = String(i + 1);
-    cell.appendChild(stepNum);
-
-    stepsRow.appendChild(cell);
-  }
-
-  panel.appendChild(stepsRow);
+  // Steps container — rows of 16, rebuilt on length change
+  stepsContainer = document.createElement('div');
+  stepsContainer.className = 'steps-container';
+  panel.appendChild(stepsContainer);
+  renderSteps();
   return panel;
 }
 
