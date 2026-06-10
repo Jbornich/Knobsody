@@ -1,0 +1,336 @@
+/* ── Reset & global ────────────────────────────────────────────────────── */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+html, body {
+  height: 100%;
+  background: #141412;
+  color: #C8C8B8;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 13px;
+  /* Allow vertical scrolling between panels; controls override with touch-action:none */
+  touch-action: pan-y;
+  overflow-x: hidden;
+}
+
+#app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+}
+
+/* ── Transport bar ─────────────────────────────────────────────────────── */
+
+.transport-bar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  background: #232321;
+  border: 1px solid #3A3A38;
+  border-radius: 8px;
+  padding: 10px 18px;
+  flex-shrink: 0;
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  margin-right: 8px;
+}
+
+.brand-name {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: #E8A020;
+  text-transform: uppercase;
+}
+
+.brand-sub {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: #888870;
+  text-transform: lowercase;
+}
+
+.transport-divider {
+  width: 1px;
+  height: 40px;
+  background: #3A3A38;
+  flex-shrink: 0;
+}
+
+/* RUN / STOP button */
+.btn-run {
+  min-width: 72px;
+  height: 48px;
+  border-radius: 6px;
+  border: 2px solid #3A3A38;
+  background: #2A3A2A;
+  color: #80D880;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  touch-action: none;
+  transition: background 0.08s, color 0.08s;
+}
+
+.btn-run:active { background: #1A2A1A; }
+
+.btn-run.running {
+  background: #3A1A1A;
+  color: #D86060;
+  border-color: #5A2A2A;
+}
+
+/* BPM control */
+.bpm-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bpm-label {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: #888870;
+  text-transform: uppercase;
+}
+
+.bpm-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 160px;
+  height: 6px;
+  background: #3A3A38;
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.bpm-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #E8A020;
+  cursor: pointer;
+}
+
+.bpm-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #E8A020;
+  cursor: pointer;
+  border: none;
+}
+
+.bpm-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #E8E8D0;
+  min-width: 38px;
+  text-align: right;
+}
+
+/* Fullscreen button */
+.btn-fullscreen {
+  margin-left: auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  border: 1px solid #3A3A38;
+  background: #2A2A28;
+  color: #888870;
+  font-size: 18px;
+  cursor: pointer;
+  touch-action: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.btn-fullscreen:active { background: #1A1A18; }
+
+/* ── Track panel ───────────────────────────────────────────────────────── */
+
+.track-panel {
+  background: #2C2C2A;
+  border: 1px solid #3A3A38;
+  border-radius: 10px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.track-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #242422;
+  border-bottom: 1px solid #3A3A38;
+  padding: 8px 16px;
+  flex-wrap: wrap;
+}
+
+.track-name {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #E8A020;
+  text-transform: uppercase;
+  min-width: 60px;
+}
+
+.track-header label {
+  font-size: 11px;
+  color: #888870;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.track-header select {
+  background: #1A1A18;
+  color: #C8C8B8;
+  border: 1px solid #4A4A48;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 12px;
+  padding: 4px 6px;
+  height: 32px;
+  cursor: pointer;
+  touch-action: none;
+  max-width: 200px;
+}
+
+.track-header select:focus { outline: none; border-color: #E8A020; }
+
+/* Length selector buttons */
+.length-group {
+  display: flex;
+  border: 1px solid #4A4A48;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.btn-len {
+  width: 36px;
+  height: 32px;
+  background: #1A1A18;
+  color: #888870;
+  border: none;
+  border-right: 1px solid #4A4A48;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.btn-len:last-child { border-right: none; }
+
+.btn-len.active {
+  background: #3A2A08;
+  color: #E8A020;
+}
+
+/* ── Steps container ───────────────────────────────────────────────────── */
+
+.steps-row {
+  display: flex;
+  gap: 2px;
+  padding: 14px 16px;
+}
+
+/* Gap between groups of 8 within a 16-step row */
+.steps-row .step-cell:nth-child(8) {
+  margin-right: 12px;
+}
+
+.step-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 72px;
+  padding: 6px 4px;
+  border-radius: 6px;
+  background: #282826;
+  border: 1px solid #343432;
+}
+
+/* ── Step LED ──────────────────────────────────────────────────────────── */
+
+.step-led {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #2A1800;
+  border: 1px solid #3A2800;
+  flex-shrink: 0;
+}
+
+.step-led.active {
+  background: #FFB000;
+  border-color: #FFC840;
+  box-shadow: 0 0 6px #FFB000, 0 0 12px #FFB00080;
+}
+
+/* ── Knob SVG ──────────────────────────────────────────────────────────── */
+
+.knob-svg {
+  display: block;
+  cursor: ns-resize;
+  touch-action: none;
+  flex-shrink: 0;
+}
+
+/* ── Note name & step number ───────────────────────────────────────────── */
+
+.step-note {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #A8A898;
+  white-space: nowrap;
+}
+
+.step-num {
+  font-size: 10px;
+  color: #555550;
+  letter-spacing: 0.08em;
+}
+
+/* ── MIDI error banner ─────────────────────────────────────────────────── */
+
+.midi-error {
+  background: #3A1A1A;
+  border: 1px solid #6A2A2A;
+  border-radius: 8px;
+  padding: 20px 24px;
+  color: #E87070;
+  font-size: 14px;
+  line-height: 1.6;
+  max-width: 560px;
+  margin: 24px auto;
+}
+
+.midi-error strong {
+  display: block;
+  font-size: 16px;
+  margin-bottom: 8px;
+}

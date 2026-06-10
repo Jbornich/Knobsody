@@ -1,0 +1,155 @@
+# Knobsody — analog-style MIDI step sequencer (web app)
+
+**Product name:** Knobsody (by Bornich Audio). Repo name: `knobsody`.
+Show "KNOBSODY" as panel branding in the transport bar with a smaller
+"by Bornich Audio" beneath it, styled like silkscreen print on hardware.
+Browser tab title: "Knobsody — Bornich Audio".
+
+## Purpose
+A browser-based emulation of an analog hardware step sequencer with MIDI output,
+for live standalone use with hardware synthesizers. Desktop only, Chrome/Edge
+(Web MIDI API is not available in Safari/iOS — show a clear error if missing).
+
+## Stack
+- Vite + TypeScript, vanilla DOM/SVG. No UI framework, no backend.
+- Web MIDI API directly (`navigator.requestMIDIAccess()`), no wrapper library.
+- Code comments in English.
+
+## Core concepts
+
+### Tracks
+- Each track is a full sequencer panel bound to one MIDI output port + channel.
+- Tracks are stacked vertically, visually separated, ALL always visible.
+  No tabs, no collapsing, no view switching, no menus. Adding a track appends
+  a new panel; removing deletes it.
+- All tracks share one master clock but each track has its own step counter.
+
+### Steps
+- Per-track length selector: 8 / 16 / 32. Steps render in rows of 16:
+  length 8 = one row of 8; length 16 = one full row of 16 (8 + 8 side by
+  side, with a slightly larger visual gap between step 8 and 9 for
+  readability); length 32 = two rows of 16. Changing length adds/removes
+  steps in place; existing step data is preserved.
+- Layout assumes a wide screen (≥ ~1600 px). On narrower viewports, scale
+  the whole panel down proportionally rather than re-wrapping rows.
+- Each step has:
+  1. **Rotary knob** — sets MIDI note (pitch). Vertical drag to turn,
+     double-click to reset to C3. Range C1–C6, chromatic. Show note name
+     under the knob. (Optional per-track scale-quantize toggle is a
+     nice-to-have, not v1.)
+  2. **3-position toggle switch** — PLAY / MUTE / RESET. Interaction:
+     tap/click cycles PLAY → MUTE → RESET → PLAY (no dragging required):
+     - PLAY: note fires when the playhead hits the step.
+     - MUTE: the step consumes clock time but sends nothing (timing preserved).
+     - RESET: when the counter REACHES this step, it immediately jumps to
+       step 1 WITHOUT playing the step. This shortens the effective loop
+       and is the polyrhythm mechanism (e.g. track 1 loops 16, track 2 has
+       RESET on step 13 → 12-step loop against 16).
+  3. **Step LED** — lit while the playhead is on the step (running-light chase).
+- Steps beyond the effective loop (after a RESET step) render dimmed.
+
+### Clock & scheduling (critical — do not use setInterval as the clock)
+- The app is CLOCK MASTER. Internal clock only, no external sync in v1.
+- Lookahead scheduler pattern (Chris Wilson, "A Tale of Two Clocks",
+  https://web.dev/articles/audio-scheduling):
+  - A timer ticks every ~25 ms and schedules all events falling within the
+    next ~100 ms window.
+  - Time base: `AudioContext.currentTime` (create a silent AudioContext).
+  - MIDI events are sent with a FUTURE timestamp:
+    `output.send(bytes, performance.now() + deltaMs)` — convert AudioContext
+    time to the `performance.now()` timebase once at startup. The browser
+    then emits them with sub-millisecond accuracy regardless of main-thread jank.
+- Note off: schedule explicitly. Gate length = per-track knob, 10–95 % of the
+  step duration. Default 50 %. Always send note-off before a re-trigger of the
+  same note (no hanging notes).
+- Velocity: fixed 100 in v1.
+- Tempo: 40–240 BPM, one step = one 16th note.
+- **MIDI clock out**: send 0xF8 at 24 ppqn plus 0xFA (start) / 0xFC (stop) on
+  transport, scheduled through the same lookahead mechanism, to a user-selected
+  set of output ports (so hardware can sync to the app).
+- Stop = all-notes-off (CC 123) on every active channel.
+
+### Playhead UI
+- Decoupled from the scheduler: a `requestAnimationFrame` loop reads the
+  scheduler's "current step per track" state and updates LEDs. The scheduler
+  must never wait on rendering.
+
+### MIDI I/O
+- Enumerate outputs on load; per-track selectors for output port and channel
+  (1–16). Handle `statechange` for hot-plugging interfaces (the user runs a
+  multi-port USB MIDI interface).
+- Request access WITHOUT sysex.
+
+### Persistence
+- Autosave full app state (tracks, steps, tempo, port/channel choices) to
+  localStorage on change (debounced). Restore on load; reselect MIDI ports by
+  name with graceful fallback if a port is missing.
+- Export/import the whole setup as a JSON file.
+
+## Visual design (hardware-panel aesthetic)
+- Dark faceplate panels (#2C2C2A), one panel per track, rounded corners,
+  generous spacing between panels.
+- Per step, vertically: LED (amber when active), knob (dark with light pointer
+  line), note name, 3-position switch (green dot = PLAY top, gray = MUTE middle,
+  red = RESET bottom), step number.
+- Panel header: track name, MIDI port/channel selectors, length selector
+  (8/16/32 buttons), per-track gate-length knob.
+- Global transport bar: RUN/STOP, tempo knob + BPM readout, clock-out port
+  selection, "+ track" button.
+- Flat colors, no gradients. Knobs and switches as inline SVG.
+
+## Touch (primary input — large touchscreen on a Windows PC)
+- All interactive elements ≥ 48×48 px hit area; knobs 56–64 px diameter,
+  toggles tall enough for a fingertip. Desktop mouse must still work.
+- Double-tap = double-click (knob reset to C3).
+- Suppress browser/OS interference: `user-select: none` globally,
+  `contextmenu` preventDefault (kills long-press menu), viewport
+  `user-scalable=no`, `touch-action: none` on controls,
+  `touch-action: pan-y` on the page so vertical scrolling between many
+  tracks still works outside controls.
+- Fullscreen toggle button using the Fullscreen API (requires a user
+  gesture — trigger on first tap). Recommend running Edge in kiosk mode
+  for live use.
+- No hover-dependent UI; every state must be visible without hover.
+- Knob interaction: Pointer Events with `setPointerCapture`, vertical drag
+  (1 px ≈ 0.5 semitone). Track state per `pointerId` so multiple knobs can be
+  turned simultaneously (multi-touch). Fine mode: Shift on mouse; on touch,
+  resolution increases with horizontal finger distance from the knob.
+  Set `touch-action: none` on all knobs/switches.
+
+## Milestones (implement and verify in this order)
+0. Before any code: ensure the project is a git repository with a GitHub
+   remote. If `git status` fails, run `git init`, commit the scaffold +
+   SPEC.md, and create the remote with
+   `gh repo create knobsody --public --source . --push`.
+   Commit at the end of every milestone (and after significant fixes)
+   with descriptive messages.
+1. MIDI out + lookahead scheduler + ONE hardcoded 8-step track (knobs + LEDs).
+   Verify timing tightness against hardware before building more UI.
+2. 3-position toggles with MUTE/RESET semantics; 16/32 length with
+   16-per-row layout and 8/8 grouping gap.
+3. Multi-track (add/remove panels), per-track port/channel, MIDI clock out.
+4. Persistence (localStorage + JSON export/import), gate-length knob, polish.
+
+## Build & deployment
+- `npm run build` must produce TWO usable outputs from the same codebase:
+  1. **Single-file build**: use `vite-plugin-singlefile` so `dist/index.html`
+     is fully self-contained (all JS/CSS inlined). It must work when opened
+     directly via `file://` (double-click on the desktop) — no module/CORS
+     errors, no external asset requests at runtime.
+  2. **Static hosting**: the same `dist/` output deploys to GitHub Pages.
+     Add a GitHub Actions workflow (`.github/workflows/deploy.yml`) that
+     builds and publishes `dist/` to Pages on every push to `main`.
+     Set Vite `base: './'` (works for both the GitHub Pages subpath
+     `/knobsody/` and the `file://` single-file build).
+- No runtime network requests at all: no CDN scripts, no external fonts.
+  Everything bundled.
+- Document in README: known `file://` caveats (MIDI permission may be
+  re-prompted per session; localStorage is tied to the file path, so moving
+  the file loses saved state) and the recommended live setup:
+  `msedge --kiosk https://<username>.github.io/knobsody/`.
+
+## Non-goals (v1)
+- External clock sync (slave mode), MIDI input, CC sequencing, swing,
+  per-step velocity/probability, scale quantization, small-screen/phone
+  layouts, iOS/iPadOS (no Web MIDI).
