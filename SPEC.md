@@ -153,3 +153,18 @@ for live standalone use with hardware synthesizers. Desktop only, Chrome/Edge
 - External clock sync (slave mode), MIDI input, CC sequencing, swing,
   per-step velocity/probability, scale quantization, small-screen/phone
   layouts, iOS/iPadOS (no Web MIDI).
+- Desktop packaging (see Future below).
+
+## Future (v2) — desktop packaging
+- Target: installable desktop app for Windows AND Linux.
+- Decision: **Electron**, not Tauri. Tauri uses WebKitGTK on Linux, which
+  has no Web MIDI — Electron bundles Chromium and behaves identically on
+  both platforms. Add `session.setPermissionRequestHandler` to grant MIDI
+  permission in the main process.
+- Build via GitHub Actions (electron-builder) on version tags, publishing
+  .exe (NSIS), AppImage and .deb as GitHub Release assets.
+- Known caveat: unsigned Windows builds trigger SmartScreen; code signing
+  (e.g. Azure Trusted Signing) only if distribution beyond personal use.
+- Note: the web app already runs on Linux in Chrome/Chromium (ALSA);
+  avoid the Ubuntu Chromium snap for MIDI access (sandbox restrictions) —
+  use the Google Chrome .deb.
