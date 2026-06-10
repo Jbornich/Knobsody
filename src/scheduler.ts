@@ -6,6 +6,9 @@ import type { TrackState } from './types';
 // with sub-millisecond accuracy regardless of main-thread jank.
 const LOOKAHEAD_S = 0.1;  // schedule 100 ms ahead
 const TICK_MS = 25;        // check every 25 ms
+// EMA factor for the time-offset low-pass: tracks slow AudioContext/perf clock
+// drift while averaging out per-tick currentTime-quantization noise.
+const OFFSET_SMOOTHING = 0.1;
 
 interface DisplayEvent {
   trackIndex: number;
@@ -18,6 +21,10 @@ export class Scheduler {
   private timerId: ReturnType<typeof setTimeout> | null = null;
   private running = false;
   private _bpm = 120;
+
+  // Smoothed offset (ms) from AudioContext time to the performance.now() timebase.
+  private offsetMs = 0;
+  private offsetInit = false;
 
   // Per-track: next step index and the AudioContext time it should fire
   private nextStepTimes: number[] = [];
@@ -49,6 +56,9 @@ export class Scheduler {
     this.nextSteps = tracks.map(() => 0);
     this.displayQueue = [];
     tracks.forEach((_, i) => { this.displaySteps[i] = -1; });
+
+    // Re-seed the smoothed offset on each run
+    this.offsetInit = false;
 
     this.running = true;
     this.tick();
@@ -87,8 +97,21 @@ export class Scheduler {
   private tick(): void {
     if (!this.running || !this.audioCtx) return;
 
+    const tnow = performance.now();
     const stepDuration = 60 / this._bpm / 4; // one 16th note in seconds
-    const lookaheadEnd = this.audioCtx.currentTime + LOOKAHEAD_S;
+    const ctNow = this.audioCtx.currentTime;
+
+    // Update the smoothed AudioContext -> performance.now() offset. tnow and
+    // ctNow are read adjacently to keep the measurement near-atomic.
+    const measuredOffset = tnow - ctNow * 1000;
+    if (!this.offsetInit) {
+      this.offsetMs = measuredOffset;
+      this.offsetInit = true;
+    } else {
+      this.offsetMs += OFFSET_SMOOTHING * (measuredOffset - this.offsetMs);
+    }
+
+    const lookaheadEnd = ctNow + LOOKAHEAD_S;
     const tracks = this.getTracks();
 
     for (let ti = 0; ti < tracks.length; ti++) {
@@ -136,8 +159,9 @@ export class Scheduler {
     } catch { /* port disconnected between schedule and send */ }
   }
 
-  // Convert an AudioContext time to a performance.now()-based MIDI timestamp (ms)
+  // Convert an AudioContext time to a performance.now()-based MIDI timestamp (ms),
+  // using the smoothed offset so stamps track drift but carry no per-tick noise.
   private toMidiStamp(audioTime: number): number {
-    return performance.now() + (audioTime - this.audioCtx!.currentTime) * 1000;
+    return this.offsetMs + audioTime * 1000;
   }
 }
