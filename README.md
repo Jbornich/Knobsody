@@ -26,20 +26,27 @@ Produces two usable outputs from the same `dist/` folder:
 
 ## Recommended live setup
 
+Run `npm run build`, then open the self-contained `dist/index.html` directly in
+Edge kiosk mode:
+
 ```
-msedge --kiosk https://<username>.github.io/knobsody/
+msedge --kiosk "file:///C:/path/to/Knobsody/dist/index.html"
 ```
 
-Or open `dist/index.html` directly in Edge kiosk mode.
+Keep `dist/index.html` at a **stable path** so saved state persists (see caveats
+below), and back up your setup with **Export** before moving it.
 
 ## `file://` caveats
 
-- **MIDI permission** may be re-prompted each session when using `file://`. This is a browser security policy — saving the file to a stable path and using a hosted URL avoids it.
+- **MIDI permission** may be re-prompted each session when using `file://`. This is a browser security policy.
 - **localStorage** is tied to the exact file path. Moving or renaming the file will lose saved state. Use the JSON export to back up your setup.
 
-## GitHub Pages deployment
+## Hosting (optional)
 
-Push to `main` — the included GitHub Actions workflow (`.github/workflows/deploy.yml`) builds and publishes `dist/` to Pages automatically.
+This repo is **private**, so GitHub Pages is not used (Pages on private repos
+requires a paid plan). The `file://` single-file build above is the supported
+live setup. If you later make the repo public, the same `dist/` output can be
+published to GitHub Pages — `base: './'` already supports both targets.
 
 ## Saving your setup
 
