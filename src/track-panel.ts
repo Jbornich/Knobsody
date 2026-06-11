@@ -1,7 +1,7 @@
 import { Knob } from './knob';
 import { Switch } from './switch';
 import {
-  defaultStep, midiToNoteName, randomizeTrack,
+  defaultStep, midiToNoteName, randomizeTrack, quantizeToScale,
   NOTE_MIN, NOTE_MAX, NOTE_DEFAULT,
   GATE_MIN, GATE_MAX, GATE_DEFAULT, PITCH_CLASS_NAMES,
 } from './types';
@@ -321,6 +321,7 @@ export class TrackPanel {
     rootSelect.value = String(this.track.scaleRoot);
     rootSelect.addEventListener('change', () => {
       this.track.scaleRoot = parseInt(rootSelect.value, 10);
+      this.requantizeToScale();
       this.onChange();
     });
     group.appendChild(rootSelect);
@@ -336,10 +337,24 @@ export class TrackPanel {
     typeSelect.value = this.track.scaleType;
     typeSelect.addEventListener('change', () => {
       this.track.scaleType = typeSelect.value as ScaleType;
+      this.requantizeToScale();
       this.onChange();
     });
     group.appendChild(typeSelect);
     return group;
+  }
+
+  // Snap every step's note to the nearest note in the current scale, updating
+  // the knobs + note labels live. Lets the user audition keys/scales instantly.
+  // 'chromatic' allows all notes, so it leaves the sequence unchanged.
+  private requantizeToScale(): void {
+    for (let i = 0; i < this.track.steps.length; i++) {
+      const q = quantizeToScale(this.track.steps[i].note, this.track.scaleRoot, this.track.scaleType);
+      this.track.steps[i].note = q;
+      // Only the rendered steps (0..length-1) have a knob + label.
+      this.knobInstances[i]?.setValue(q);
+      if (this.noteNameEls[i]) this.noteNameEls[i].textContent = midiToNoteName(q);
+    }
   }
 
   private label(text: string): HTMLLabelElement {

@@ -36,8 +36,12 @@ for live standalone use with hardware synthesizers. Desktop only, Chrome/Edge
   1. **Rotary knob** — sets MIDI note (pitch). Vertical drag to turn,
      double-click to reset to C3. Range C1–C6, chromatic. Show note name
      under the knob. Knobs themselves stay chromatic. A per-track scale
-     (root note + scale type) is part of v1 to drive Randomize (see below);
-     manual quantize-on-turn for the knobs remains an optional nice-to-have.
+     (root note + scale type) is part of v1 to drive Randomize (see below)
+     and to re-quantize the existing sequence: changing the scale root or
+     type immediately snaps every step's note to the nearest note in the
+     chosen scale, so the user can audition keys/scales live (chromatic =
+     no change). Manual quantize-on-turn for the knobs remains an optional
+     nice-to-have.
   2. **3-position toggle switch** — laid out like a traffic light:
      RESET (top, red) / MUTE (middle, yellow) / PLAY (bottom, green).
      Default is PLAY. Interaction: tap/click toggles upward
@@ -171,7 +175,8 @@ for live standalone use with hardware synthesizers. Desktop only, Chrome/Edge
 ## Non-goals (v1)
 - External clock sync (slave mode), MIDI input, CC sequencing, swing,
   per-step velocity/probability, manual quantize-on-turn for knobs
-  (the scale selector still exists, but only Randomize uses it),
+  (the scale selector drives Randomize and re-quantizes the sequence on
+  change, but the knobs stay chromatic while dragging),
   small-screen/phone
   layouts, iOS/iPadOS (no Web MIDI).
 - Desktop packaging (see Future below).
