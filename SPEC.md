@@ -35,8 +35,9 @@ for live standalone use with hardware synthesizers. Desktop only, Chrome/Edge
 - Each step has:
   1. **Rotary knob** — sets MIDI note (pitch). Vertical drag to turn,
      double-click to reset to C3. Range C1–C6, chromatic. Show note name
-     under the knob. (Optional per-track scale-quantize toggle is a
-     nice-to-have, not v1.)
+     under the knob. Knobs themselves stay chromatic. A per-track scale
+     (root note + scale type) is part of v1 to drive Randomize (see below);
+     manual quantize-on-turn for the knobs remains an optional nice-to-have.
   2. **3-position toggle switch** — laid out like a traffic light:
      RESET (top, red) / MUTE (middle, yellow) / PLAY (bottom, green).
      Default is PLAY. Interaction: tap/click toggles upward
@@ -50,6 +51,18 @@ for live standalone use with hardware synthesizers. Desktop only, Chrome/Edge
   3. **Step LED** — lit while the playhead is on the step (running-light chase).
 - The RESET step itself and all steps after it (outside the effective loop)
   render dimmed.
+
+### Randomize (Milestone 4)
+- A per-track **Randomize** button in the panel header. Randomizes that
+  track's step data in place (only the pressed track is affected):
+  - **Notes**: a fresh random pitch per step, quantized to the track's
+    selected scale (root + scale type), within C1–C6.
+  - **Modes**: a fresh random PLAY/MUTE pattern per step. RESET is left
+    untouched, so randomizing never silently changes the loop length.
+- Requires a per-track scale selector (root note + scale type — e.g. major,
+  minor, pentatonic, chromatic). Chromatic = no constraint.
+- Writes only to step data; the lookahead scheduler picks the new values up
+  on its next pass with no rescheduling glitch (it reads `getTracks()` live).
 
 ### Clock & scheduling (critical — do not use setInterval as the clock)
 - The app is CLOCK MASTER. Internal clock only, no external sync in v1.
@@ -96,7 +109,8 @@ for live standalone use with hardware synthesizers. Desktop only, Chrome/Edge
   line), note name, 3-position switch (traffic light: red = RESET top,
   yellow = MUTE middle, green = PLAY bottom), step number.
 - Panel header: track name, MIDI port/channel selectors, length selector
-  (8/16/32 buttons), per-track gate-length knob.
+  (8/16/32 buttons), per-track gate-length knob, scale selector
+  (root + type), and a Randomize button.
 - Global transport bar: RUN/STOP, tempo knob + BPM readout, clock-out port
   selection, "+ track" button.
 - Flat colors, no gradients. Knobs and switches as inline SVG.
@@ -132,7 +146,9 @@ for live standalone use with hardware synthesizers. Desktop only, Chrome/Edge
 2. 3-position toggles with MUTE/RESET semantics; 16/32 length with
    16-per-row layout and 8/8 grouping gap.
 3. Multi-track (add/remove panels), per-track port/channel, MIDI clock out.
-4. Persistence (localStorage + JSON export/import), gate-length knob, polish.
+4. Persistence (localStorage + JSON export/import), gate-length knob,
+   per-track scale selector + Randomize button (scale-quantized notes +
+   modes), polish.
 
 ## Build & deployment
 - `npm run build` must produce TWO usable outputs from the same codebase:
@@ -154,7 +170,9 @@ for live standalone use with hardware synthesizers. Desktop only, Chrome/Edge
 
 ## Non-goals (v1)
 - External clock sync (slave mode), MIDI input, CC sequencing, swing,
-  per-step velocity/probability, scale quantization, small-screen/phone
+  per-step velocity/probability, manual quantize-on-turn for knobs
+  (the scale selector still exists, but only Randomize uses it),
+  small-screen/phone
   layouts, iOS/iPadOS (no Web MIDI).
 - Desktop packaging (see Future below).
 

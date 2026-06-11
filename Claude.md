@@ -7,4 +7,6 @@
 - Code comments in English.
 - Never break the lookahead scheduler pattern: all MIDI events are sent
   with future timestamps; UI rendering must never block scheduling.
-- Current status: milestone 1 implemented, awaiting hardware timing test.
+- Current status: milestone 2 implemented, hardware timing test passed.
+  Known deferred issue: a minor timing hiccup may occur while controls are
+  being operated during playback — to revisit later.
