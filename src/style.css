@@ -27,6 +27,27 @@ html, body {
   padding: 12px;
 }
 
+/* Fullscreen fit-to-screen: scale the whole app (set by JS) so every track is
+   visible without scrolling. #app sizes to its natural content; the body
+   centres it and clips any overflow while the transform shrinks/grows it. */
+html.fs-scaled,
+html.fs-scaled body {
+  height: 100%;
+  overflow: hidden;
+}
+
+html.fs-scaled body {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+html.fs-scaled #app {
+  width: max-content;
+  min-height: 0;
+  transform-origin: top center;
+}
+
 /* ── Transport bar ─────────────────────────────────────────────────────── */
 
 .transport-bar {

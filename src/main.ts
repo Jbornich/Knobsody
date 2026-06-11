@@ -327,6 +327,28 @@ function refreshClockPorts(): void {
   }
 }
 
+// ── Fullscreen fit-to-screen scaling ───────────────────────────────────────
+
+// In fullscreen, scale the whole app so every track fits without scrolling.
+// offsetWidth/Height are layout sizes (unaffected by the transform), and the
+// .fs-scaled class makes #app size to its natural content, so we can measure
+// the unscaled dimensions and pick a scale that fits both axes.
+function applyFullscreenScale(): void {
+  const root = document.documentElement;
+  if (!document.fullscreenElement) {
+    root.classList.remove('fs-scaled');
+    app.style.transform = '';
+    return;
+  }
+  root.classList.add('fs-scaled');
+  app.style.transform = 'none';
+  const natW = app.offsetWidth;
+  const natH = app.offsetHeight;
+  if (natW === 0 || natH === 0) return;
+  const scale = Math.min(window.innerWidth / natW, window.innerHeight / natH);
+  app.style.transform = `scale(${scale})`;
+}
+
 // ── rAF display loop ─────────────────────────────────────────────────────
 
 function rafLoop(): void {
@@ -377,6 +399,14 @@ async function init(): Promise<void> {
     console.warn('MIDI access failed:', err);
     clockOutContainer.innerHTML = '<span class="clock-none">MIDI access denied</span>';
   }
+
+  // Re-fit on entering/leaving fullscreen, on viewport resize, and whenever the
+  // content size changes (adding/removing tracks, changing length) — the
+  // ResizeObserver watches #app's layout size, which the transform does not
+  // affect, so there is no feedback loop.
+  document.addEventListener('fullscreenchange', applyFullscreenScale);
+  window.addEventListener('resize', applyFullscreenScale);
+  new ResizeObserver(() => applyFullscreenScale()).observe(app);
 
   requestAnimationFrame(rafLoop);
 }
