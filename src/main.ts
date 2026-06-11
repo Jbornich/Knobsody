@@ -346,6 +346,14 @@ async function init(): Promise<void> {
   tracksContainer.className = 'tracks-container';
   app.appendChild(tracksContainer);
 
+  // Pay the AudioContext construction cost now, and resume it on the very first
+  // user gesture, so the clock is already running when the user presses RUN
+  // (no first-press startup delay). Capture phase so it runs before RUN's own
+  // handler if the first gesture happens to be the RUN button itself.
+  scheduler.prewarm();
+  const warmUp = () => { scheduler.resumeContext(); };
+  window.addEventListener('pointerdown', warmUp, { once: true, capture: true });
+
   // Restore the saved setup, or start with a single default track.
   const saved = load();
   if (saved && saved.tracks.length > 0) {

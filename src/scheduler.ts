@@ -62,6 +62,22 @@ export class Scheduler {
   set bpm(v: number) { this._bpm = Math.max(40, Math.min(240, v)); }
   get isRunning(): boolean { return this.running; }
 
+  // Eagerly create the AudioContext so its (one-time) audio-device init cost is
+  // paid at app load, not on the first RUN press. The context starts 'suspended'
+  // (autoplay policy) until resumeContext() is called from a user gesture.
+  prewarm(): void {
+    if (!this.audioCtx) this.audioCtx = new AudioContext();
+  }
+
+  // Resume the AudioContext on a user gesture so it is already 'running' by the
+  // time the user presses RUN. Safe to call repeatedly; no-op once running.
+  async resumeContext(): Promise<void> {
+    this.prewarm();
+    if (this.audioCtx!.state === 'suspended') {
+      try { await this.audioCtx!.resume(); } catch { /* gesture required / not ready */ }
+    }
+  }
+
   // Current display step for a track (-1 if none). Read by the rAF LED loop.
   displayStepFor(trackId: string): number {
     return this.displaySteps.get(trackId) ?? -1;
