@@ -329,24 +329,52 @@ function refreshClockPorts(): void {
 
 // ── Fullscreen fit-to-screen scaling ───────────────────────────────────────
 
+// Arrange the track panels in N columns (1 = the default vertical stack).
+function setColumns(cols: number): void {
+  if (cols >= 2) {
+    tracksContainer.style.display = 'grid';
+    tracksContainer.style.gridTemplateColumns = 'max-content '.repeat(cols).trim();
+    tracksContainer.style.alignItems = 'start'; // panels keep their own height
+  } else {
+    tracksContainer.style.display = '';
+    tracksContainer.style.gridTemplateColumns = '';
+    tracksContainer.style.alignItems = '';
+  }
+}
+
+// Lay out in `cols` columns, then measure the fit-scale for the current
+// viewport. offsetWidth/Height are layout sizes (unaffected by the transform),
+// and the .fs-scaled class makes #app size to its natural content.
+function fitScaleForColumns(cols: number): number {
+  setColumns(cols);
+  app.style.transform = 'none';
+  const w = app.offsetWidth;
+  const h = app.offsetHeight;
+  if (w === 0 || h === 0) return 0;
+  return Math.min(window.innerWidth / w, window.innerHeight / h);
+}
+
 // In fullscreen, scale the whole app so every track fits without scrolling.
-// offsetWidth/Height are layout sizes (unaffected by the transform), and the
-// .fs-scaled class makes #app size to its natural content, so we can measure
-// the unscaled dimensions and pick a scale that fits both axes.
+// From 5 tracks up, also try a 2-column layout and keep it when it lets the
+// panels be larger (it won't, e.g., for very wide 32-step tracks).
 function applyFullscreenScale(): void {
   const root = document.documentElement;
   if (!document.fullscreenElement) {
     root.classList.remove('fs-scaled');
+    setColumns(1);
     app.style.transform = '';
     return;
   }
   root.classList.add('fs-scaled');
-  app.style.transform = 'none';
-  const natW = app.offsetWidth;
-  const natH = app.offsetHeight;
-  if (natW === 0 || natH === 0) return;
-  const scale = Math.min(window.innerWidth / natW, window.innerHeight / natH);
-  app.style.transform = `scale(${scale})`;
+
+  const candidates = panels.length >= 5 ? [1, 2] : [1];
+  let best = { cols: 1, scale: 0 };
+  for (const cols of candidates) {
+    const scale = fitScaleForColumns(cols);
+    if (scale > best.scale) best = { cols, scale };
+  }
+  setColumns(best.cols);
+  app.style.transform = `scale(${best.scale})`;
 }
 
 // ── rAF display loop ─────────────────────────────────────────────────────

@@ -22,6 +22,10 @@ for live standalone use with hardware synthesizers. Desktop only, Chrome/Edge
 - Tracks are stacked vertically, visually separated, ALL always visible.
   No tabs, no collapsing, no view switching, no menus. Adding a track appends
   a new panel; removing deletes it.
+- Fullscreen fit: in fullscreen the whole app is scaled so every track is
+  visible without scrolling. From 5 tracks up it may arrange panels in two
+  columns when that keeps them larger (it falls back to one column when two
+  would be smaller, e.g. for very wide 32-step tracks).
 - All tracks share one master clock but each track has its own step counter.
 
 ### Steps
