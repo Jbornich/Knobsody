@@ -146,6 +146,72 @@ html, body {
   text-align: right;
 }
 
+/* Clock-out port selection */
+.clock-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.clock-label {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: #888870;
+  text-transform: uppercase;
+}
+
+.clock-ports {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  max-width: 360px;
+}
+
+.btn-clock-port {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 4px;
+  border: 1px solid #4A4A48;
+  background: #1A1A18;
+  color: #888870;
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  touch-action: none;
+  white-space: nowrap;
+}
+
+.btn-clock-port.active {
+  background: #3A2A08;
+  color: #E8A020;
+  border-color: #E8A020;
+}
+
+.clock-none {
+  font-size: 11px;
+  color: #66665C;
+  font-style: italic;
+}
+
+/* + track button */
+.btn-add-track {
+  min-width: 72px;
+  height: 48px;
+  border-radius: 6px;
+  border: 2px solid #3A3A38;
+  background: #2A2A28;
+  color: #C8C8B8;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.btn-add-track:active { background: #1A1A18; }
+
 /* Fullscreen button */
 .btn-fullscreen {
   margin-left: auto;
@@ -167,6 +233,13 @@ html, body {
 .btn-fullscreen:active { background: #1A1A18; }
 
 /* ── Track panel ───────────────────────────────────────────────────────── */
+
+/* Vertical stack of track panels, all always visible. */
+.tracks-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
 
 .track-panel {
   background: #2C2C2A;
@@ -247,6 +320,25 @@ html, body {
   background: #3A2A08;
   color: #E8A020;
 }
+
+/* Remove-track button — pushed to the far right of the header. */
+.btn-remove-track {
+  margin-left: auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  border: 1px solid #5A2A2A;
+  background: #2A1A1A;
+  color: #C87070;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: none;
+  flex-shrink: 0;
+}
+
+.btn-remove-track:active { background: #1A1010; }
 
 /* ── Steps container ───────────────────────────────────────────────────── */
 

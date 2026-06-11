@@ -27,6 +27,24 @@ export function defaultStep(): StepData {
   return { note: NOTE_DEFAULT, mode: 'play' };
 }
 
+// Monotonic id source for tracks. Never reused, so removing a track can never
+// collide with a later one — important for the scheduler's id-keyed cursors.
+let trackIdCounter = 0;
+
+// Create a fresh 8-step track with default-played C3 steps. `n` is the display
+// number shown in the panel header ("Track n").
+export function createTrack(n: number): TrackState {
+  return {
+    id: `track-${++trackIdCounter}`,
+    name: `Track ${n}`,
+    steps: Array.from({ length: 8 }, defaultStep),
+    length: 8,
+    midiOutput: null,
+    midiChannel: ((n - 1) % 16) + 1, // spread new tracks across channels 1..16
+    gateLength: 0.5,
+  };
+}
+
 // Effective loop length: a RESET step ends the loop, so the counter cycles
 // steps 0..(firstReset-1) and the RESET step itself never plays nor consumes
 // clock time. This is the polyrhythm mechanism. A RESET on the very first step

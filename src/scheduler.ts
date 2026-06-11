@@ -11,10 +11,23 @@ const TICK_MS = 25;        // check every 25 ms
 // drift while averaging out per-tick currentTime-quantization noise.
 const OFFSET_SMOOTHING = 0.1;
 
+// MIDI System Real-Time messages
+const CLOCK = 0xF8; // 24 pulses per quarter note
+const START = 0xFA;
+const STOP = 0xFC;
+const CLOCK_PPQN = 24;
+
 interface DisplayEvent {
-  trackIndex: number;
+  trackId: string;
   stepIndex: number;
   audioTime: number;
+}
+
+// Per-track running position. Keyed by track id (not array index) so that
+// adding or removing tracks mid-run never shifts another track's state.
+interface TrackCursor {
+  nextStep: number;   // step index to fire next
+  nextTime: number;   // AudioContext time it should fire at
 }
 
 export class Scheduler {
@@ -27,21 +40,32 @@ export class Scheduler {
   private offsetMs = 0;
   private offsetInit = false;
 
-  // Per-track: next step index and the AudioContext time it should fire
-  private nextStepTimes: number[] = [];
-  private nextSteps: number[] = [];
+  // Per-track cursors, keyed by track id.
+  private cursors = new Map<string, TrackCursor>();
+
+  // Next MIDI-clock pulse time (AudioContext seconds). Advances independently
+  // of the step grid so clock stays steady regardless of per-track lengths.
+  private nextClockTime = 0;
 
   // Queue written by scheduler tick, drained by rAF loop
   private displayQueue: DisplayEvent[] = [];
 
-  // Current display step per track; -1 = stopped / before first step
-  readonly displaySteps: number[] = [];
+  // Current display step per track id; missing / -1 = stopped or before first step
+  private displaySteps = new Map<string, number>();
 
-  constructor(private getTracks: () => TrackState[]) {}
+  constructor(
+    private getTracks: () => TrackState[],
+    private getClockPorts: () => MIDIOutput[],
+  ) {}
 
   get bpm(): number { return this._bpm; }
   set bpm(v: number) { this._bpm = Math.max(40, Math.min(240, v)); }
   get isRunning(): boolean { return this.running; }
+
+  // Current display step for a track (-1 if none). Read by the rAF LED loop.
+  displayStepFor(trackId: string): number {
+    return this.displaySteps.get(trackId) ?? -1;
+  }
 
   async start(): Promise<void> {
     if (!this.audioCtx) {
@@ -51,17 +75,29 @@ export class Scheduler {
       await this.audioCtx.resume();
     }
 
-    const tracks = this.getTracks();
     const now = this.audioCtx.currentTime;
-    this.nextStepTimes = tracks.map(() => now);
-    this.nextSteps = tracks.map(() => 0);
+    const tracks = this.getTracks();
+
+    // Reseed cursors for exactly the current track set.
+    this.cursors.clear();
+    this.displaySteps.clear();
+    for (const t of tracks) {
+      this.cursors.set(t.id, { nextStep: 0, nextTime: now });
+      this.displaySteps.set(t.id, -1);
+    }
     this.displayQueue = [];
-    tracks.forEach((_, i) => { this.displaySteps[i] = -1; });
+    this.nextClockTime = now;
 
     // Re-seed the smoothed offset on each run
     this.offsetInit = false;
 
     this.running = true;
+
+    // MIDI Start (0xFA) — System Real-Time, sent immediately to every clock port.
+    for (const port of this.getClockPorts()) {
+      try { port.send([START]); } catch { /* port gone */ }
+    }
+
     this.tick();
   }
 
@@ -72,17 +108,25 @@ export class Scheduler {
       this.timerId = null;
     }
 
-    // CC 123 = All Notes Off — sent immediately (no future timestamp)
+    // CC 123 = All Notes Off on every track's channel — sent immediately.
     for (const track of this.getTracks()) {
-      if (track.midiOutput) {
-        const ch = (track.midiChannel - 1) & 0xF;
-        try { track.midiOutput.send([0xB0 | ch, 123, 0]); } catch { /* port gone */ }
-      }
+      this.silence(track);
     }
 
-    const tracks = this.getTracks();
-    tracks.forEach((_, i) => { this.displaySteps[i] = -1; });
+    // MIDI Stop (0xFC) to every clock port.
+    for (const port of this.getClockPorts()) {
+      try { port.send([STOP]); } catch { /* port gone */ }
+    }
+
+    this.displaySteps.clear();
     this.displayQueue = [];
+  }
+
+  // All-notes-off for one track (used on stop and when a track is removed).
+  silence(track: TrackState): void {
+    if (!track.midiOutput) return;
+    const ch = (track.midiChannel - 1) & 0xF;
+    try { track.midiOutput.send([0xB0 | ch, 123, 0]); } catch { /* port gone */ }
   }
 
   // Called by the rAF loop to advance display step based on AudioContext time
@@ -91,7 +135,7 @@ export class Scheduler {
     const now = this.audioCtx.currentTime;
     while (this.displayQueue.length > 0 && this.displayQueue[0].audioTime <= now) {
       const evt = this.displayQueue.shift()!;
-      this.displaySteps[evt.trackIndex] = evt.stepIndex;
+      this.displaySteps.set(evt.trackId, evt.stepIndex);
     }
   }
 
@@ -115,26 +159,43 @@ export class Scheduler {
     const lookaheadEnd = ctNow + LOOKAHEAD_S;
     const tracks = this.getTracks();
 
-    for (let ti = 0; ti < tracks.length; ti++) {
-      if (this.nextStepTimes[ti] === undefined) {
-        // Track added after start
-        this.nextStepTimes[ti] = this.audioCtx.currentTime;
-        this.nextSteps[ti] = 0;
+    // ── Step events, per track ───────────────────────────────────────────
+    for (const track of tracks) {
+      let cur = this.cursors.get(track.id);
+      if (!cur) {
+        // Track added after start — begin it at the current time.
+        cur = { nextStep: 0, nextTime: this.audioCtx.currentTime };
+        this.cursors.set(track.id, cur);
+        this.displaySteps.set(track.id, -1);
       }
 
-      const effLen = effectiveLength(tracks[ti]);
-      while (this.nextStepTimes[ti] < lookaheadEnd) {
+      const effLen = effectiveLength(track);
+      while (cur.nextTime < lookaheadEnd) {
         // If the effective length shrank live (a RESET was just added past the
         // current position), wrap back to step 1 immediately.
-        let stepIdx = this.nextSteps[ti];
+        let stepIdx = cur.nextStep;
         if (stepIdx >= effLen) stepIdx = 0;
-        const stepTime = this.nextStepTimes[ti];
 
-        this.scheduleStep(tracks[ti], ti, stepIdx, stepTime, stepDuration);
+        this.scheduleStep(track, stepIdx, cur.nextTime, stepDuration);
 
-        this.nextSteps[ti] = (stepIdx + 1) % effLen;
-        this.nextStepTimes[ti] += stepDuration;
+        cur.nextStep = (stepIdx + 1) % effLen;
+        cur.nextTime += stepDuration;
       }
+    }
+
+    // ── MIDI clock pulses ────────────────────────────────────────────────
+    // Advance the clock timeline every tick regardless of whether any port is
+    // selected, so enabling a clock port mid-run never causes a backlog burst.
+    const clockPorts = this.getClockPorts();
+    const clockInterval = 60 / this._bpm / CLOCK_PPQN;
+    while (this.nextClockTime < lookaheadEnd) {
+      if (clockPorts.length > 0) {
+        const stamp = this.toMidiStamp(this.nextClockTime);
+        for (const port of clockPorts) {
+          try { port.send([CLOCK], stamp); } catch { /* port gone */ }
+        }
+      }
+      this.nextClockTime += clockInterval;
     }
 
     this.timerId = setTimeout(() => this.tick(), TICK_MS);
@@ -142,13 +203,12 @@ export class Scheduler {
 
   private scheduleStep(
     track: TrackState,
-    trackIndex: number,
     stepIndex: number,
     audioTime: number,
     stepDuration: number,
   ): void {
     // Always queue the display event so LEDs chase even with no MIDI output
-    this.displayQueue.push({ trackIndex, stepIndex, audioTime });
+    this.displayQueue.push({ trackId: track.id, stepIndex, audioTime });
 
     const step = track.steps[stepIndex];
     if (!track.midiOutput || step.mode !== 'play') return;
