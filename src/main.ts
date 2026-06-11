@@ -63,7 +63,12 @@ function requestSave(): void {
 
 // Attach an existing TrackState to the DOM + state arrays.
 function mountTrack(track: TrackState): void {
-  const panel = new TrackPanel(track, midi, () => removeTrack(track), requestSave);
+  const panel = new TrackPanel(
+    track, midi,
+    () => removeTrack(track),
+    requestSave,
+    () => scheduler.manualStep(track),
+  );
   tracks.push(track);
   panels.push(panel);
   tracksContainer.appendChild(panel.el);
@@ -149,13 +154,25 @@ function buildTransport(): HTMLElement {
       scheduler.stop();
       runBtn.textContent = 'RUN';
       runBtn.classList.remove('running');
+      document.body.classList.remove('seq-running');
     } else {
       await scheduler.start();
       runBtn.textContent = 'STOP';
       runBtn.classList.add('running');
+      // Disables the manual STEP buttons (they only act while stopped).
+      document.body.classList.add('seq-running');
     }
   });
   bar.appendChild(runBtn);
+
+  // Global manual STEP — advances every track one step while stopped.
+  const stepAllBtn = document.createElement('button');
+  stepAllBtn.className = 'btn-step btn-step-top';
+  stepAllBtn.textContent = 'STEP ▸';
+  stepAllBtn.title = 'Advance all tracks one step (when stopped)';
+  stepAllBtn.style.touchAction = 'none';
+  stepAllBtn.addEventListener('pointerdown', () => scheduler.manualStepAll());
+  bar.appendChild(stepAllBtn);
 
   bar.appendChild(divider());
 

@@ -118,9 +118,12 @@ for live standalone use with hardware synthesizers. Desktop only, Chrome/Edge
   yellow = MUTE middle, green = PLAY bottom), step number.
 - Panel header: track name, MIDI port/channel selectors, length selector
   (8/16/32 buttons), per-track gate-length knob, scale selector
-  (root + type), and a Randomize button.
-- Global transport bar: RUN/STOP, tempo knob + BPM readout, clock-out port
-  selection, "+ track" button.
+  (root + type), a Randomize button, and a manual STEP button.
+- Global transport bar: RUN/STOP, a global STEP button, tempo knob + BPM
+  readout, clock-out port selection, "+ track" button.
+- Manual STEP (per-track and global) advances the sequence one step while
+  stopped — playing that step's note (MUTE advances silently, RESET steps are
+  skipped) and lighting its LED. Disabled while running.
 - Flat colors, no gradients. Knobs and switches as inline SVG.
 
 ## Touch (primary input — large touchscreen on a Windows PC)

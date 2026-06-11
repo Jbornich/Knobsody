@@ -47,6 +47,11 @@ export class Scheduler {
   // of the step grid so clock stays steady regardless of per-track lengths.
   private nextClockTime = 0;
 
+  // Per-track position for manual single-stepping while stopped (-1 = before
+  // the first step). Independent of the running cursors; reset when playback
+  // starts so RUN always begins from step 1.
+  private manualPos = new Map<string, number>();
+
   // Queue written by scheduler tick, drained by rAF loop
   private displayQueue: DisplayEvent[] = [];
 
@@ -103,6 +108,7 @@ export class Scheduler {
     }
     this.displayQueue = [];
     this.nextClockTime = now;
+    this.manualPos.clear();
 
     // Re-seed the smoothed offset on each run
     this.offsetInit = false;
@@ -143,6 +149,40 @@ export class Scheduler {
     if (!track.midiOutput) return;
     const ch = (track.midiChannel - 1) & 0xF;
     try { track.midiOutput.send([0xB0 | ch, 123, 0]); } catch { /* port gone */ }
+  }
+
+  // Manually advance one track by a single step and play it immediately. Only
+  // active while stopped. Respects the effective loop (never lands on a RESET
+  // step) and MUTE (advances the position but sends no note). Lights the LED.
+  manualStep(track: TrackState): void {
+    if (this.running) return;
+    const effLen = effectiveLength(track);
+    let pos = (this.manualPos.get(track.id) ?? -1) + 1;
+    if (pos >= effLen) pos = 0;
+    this.manualPos.set(track.id, pos);
+    this.playStepNow(track, pos);
+    this.displaySteps.set(track.id, pos);
+  }
+
+  // Advance every track by one step (the global STEP button).
+  manualStepAll(): void {
+    if (this.running) return;
+    for (const track of this.getTracks()) this.manualStep(track);
+  }
+
+  // Fire one step's note right now (note-on immediate, note-off after the gate),
+  // independent of the lookahead timeline so it works while stopped.
+  private playStepNow(track: TrackState, stepIndex: number): void {
+    const step = track.steps[stepIndex];
+    if (!track.midiOutput || step.mode !== 'play') return;
+    const ch = (track.midiChannel - 1) & 0xF;
+    const stepDurationMs = (60 / this._bpm / 4) * 1000;
+    const now = performance.now();
+    const offTime = now + stepDurationMs * Math.min(track.gateLength, 0.95);
+    try {
+      track.midiOutput.send([0x90 | ch, step.note, 100], now);
+      track.midiOutput.send([0x80 | ch, step.note, 0], offTime);
+    } catch { /* port disconnected */ }
   }
 
   // Called by the rAF loop to advance display step based on AudioContext time

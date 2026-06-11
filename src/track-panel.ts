@@ -32,11 +32,18 @@ export class TrackPanel {
 
   // onChange is fired whenever user-visible track data mutates, so the app can
   // debounce-save. It is NOT fired during programmatic restore (populatePorts).
-  constructor(track: TrackState, midi: MidiManager, onRemove: () => void, onChange: () => void) {
+  // onStep advances this track one step manually (used while stopped).
+  constructor(
+    track: TrackState,
+    midi: MidiManager,
+    onRemove: () => void,
+    onChange: () => void,
+    onStep: () => void,
+  ) {
     this.track = track;
     this.midi = midi;
     this.onChange = onChange;
-    this.el = this.build(onRemove);
+    this.el = this.build(onRemove, onStep);
   }
 
   // ── Public API used by the app shell ─────────────────────────────────────
@@ -183,7 +190,7 @@ export class TrackPanel {
     }
   }
 
-  private build(onRemove: () => void): HTMLElement {
+  private build(onRemove: () => void, onStep: () => void): HTMLElement {
     const panel = document.createElement('div');
     panel.className = 'track-panel';
 
@@ -260,6 +267,15 @@ export class TrackPanel {
       this.onChange();
     });
     header.appendChild(randBtn);
+
+    // Manual STEP button — advances this track one step while stopped.
+    const stepBtn = document.createElement('button');
+    stepBtn.className = 'btn-step';
+    stepBtn.textContent = 'STEP ▸';
+    stepBtn.title = 'Advance this track one step (when stopped)';
+    stepBtn.style.touchAction = 'none';
+    stepBtn.addEventListener('pointerdown', onStep);
+    header.appendChild(stepBtn);
 
     // Remove-track button (pushed to the far right)
     const removeBtn = document.createElement('button');
