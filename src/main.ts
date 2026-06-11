@@ -4,6 +4,8 @@ import { Scheduler } from './scheduler';
 import { TrackPanel } from './track-panel';
 import { createTrack } from './types';
 import type { TrackState } from './types';
+import { serialize, save, load, sanitize } from './persistence';
+import type { SerializedState } from './persistence';
 
 // ── App setup ────────────────────────────────────────────────────────────
 
@@ -30,26 +32,47 @@ const midi = new MidiManager();
 const tracks: TrackState[] = [];
 const panels: TrackPanel[] = [];
 
-// Set of output-port ids that receive MIDI clock (0xF8) + start/stop.
-const clockPortIds = new Set<string>();
+// Output-port NAMES that receive MIDI clock (0xF8) + start/stop. Name-based so
+// the selection survives replug and restore (ids are not stable).
+const clockPortNames = new Set<string>();
 
 const scheduler = new Scheduler(
   () => tracks,
-  () => midi.getOutputs().filter(o => clockPortIds.has(o.id)),
+  () => midi.getOutputs().filter(o => o.name != null && clockPortNames.has(o.name)),
 );
 
 let tracksContainer: HTMLElement;
 let clockOutContainer: HTMLElement;
+let bpmSlider: HTMLInputElement;
+let bpmDisplay: HTMLSpanElement;
+
+// ── Persistence ────────────────────────────────────────────────────────────
+
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+// Debounced autosave — called from every mutation point.
+function requestSave(): void {
+  if (saveTimer !== null) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    save(serialize(tracks, scheduler.bpm, [...clockPortNames]));
+    saveTimer = null;
+  }, 400);
+}
 
 // ── Track add / remove ─────────────────────────────────────────────────────
 
-function addTrack(): void {
-  const track = createTrack(tracks.length + 1);
-  const panel = new TrackPanel(track, midi, () => removeTrack(track));
+// Attach an existing TrackState to the DOM + state arrays.
+function mountTrack(track: TrackState): void {
+  const panel = new TrackPanel(track, midi, () => removeTrack(track), requestSave);
   tracks.push(track);
   panels.push(panel);
   tracksContainer.appendChild(panel.el);
   panel.populatePorts();
+}
+
+function addTrack(): void {
+  mountTrack(createTrack(tracks.length + 1));
+  requestSave();
 }
 
 function removeTrack(track: TrackState): void {
@@ -60,6 +83,39 @@ function removeTrack(track: TrackState): void {
   panels[idx].el.remove();
   tracks.splice(idx, 1);
   panels.splice(idx, 1);
+  requestSave();
+}
+
+function clearAllTracks(): void {
+  for (const track of tracks) scheduler.silence(track);
+  for (const panel of panels) panel.el.remove();
+  tracks.length = 0;
+  panels.length = 0;
+}
+
+// Replace the whole setup from a serialized state (restore-on-load or import).
+function applyState(state: SerializedState): void {
+  clearAllTracks();
+
+  scheduler.bpm = state.bpm;
+  bpmSlider.value = String(scheduler.bpm);
+  bpmDisplay.textContent = String(scheduler.bpm);
+
+  clockPortNames.clear();
+  for (const name of state.clockPortNames) clockPortNames.add(name);
+
+  for (const st of state.tracks) {
+    const track = createTrack(1);          // fresh unique id
+    track.name = st.name;
+    track.steps = st.steps.map(s => ({ note: s.note, mode: s.mode }));
+    track.length = st.length;
+    track.midiChannel = st.channel;
+    track.gateLength = st.gateLength;
+    track.scaleRoot = st.scaleRoot;
+    track.scaleType = st.scaleType;
+    track.desiredPortName = st.portName; // resolved to a live port on populatePorts
+    mountTrack(track);
+  }
 }
 
 // ── Transport bar ────────────────────────────────────────────────────────
@@ -111,7 +167,7 @@ function buildTransport(): HTMLElement {
   bpmLabel.className = 'bpm-label';
   bpmLabel.textContent = 'BPM';
 
-  const bpmSlider = document.createElement('input');
+  bpmSlider = document.createElement('input');
   bpmSlider.type = 'range';
   bpmSlider.className = 'bpm-slider';
   bpmSlider.min = '40';
@@ -119,7 +175,7 @@ function buildTransport(): HTMLElement {
   bpmSlider.value = '120';
   bpmSlider.style.touchAction = 'none';
 
-  const bpmDisplay = document.createElement('span');
+  bpmDisplay = document.createElement('span');
   bpmDisplay.className = 'bpm-value';
   bpmDisplay.textContent = '120';
 
@@ -127,6 +183,7 @@ function buildTransport(): HTMLElement {
     const v = parseInt(bpmSlider.value, 10);
     scheduler.bpm = v;
     bpmDisplay.textContent = String(v);
+    requestSave();
   });
 
   bpmGroup.appendChild(bpmLabel);
@@ -158,6 +215,9 @@ function buildTransport(): HTMLElement {
   addBtn.addEventListener('pointerdown', () => addTrack());
   bar.appendChild(addBtn);
 
+  // Export / import setup as JSON
+  bar.appendChild(buildSetupIO());
+
   // Fullscreen toggle (far right)
   const fsBtn = document.createElement('button');
   fsBtn.className = 'btn-fullscreen';
@@ -175,16 +235,69 @@ function buildTransport(): HTMLElement {
   return bar;
 }
 
-// (Re)build the clock-out port toggles. Selections persist by port id across
-// rebuilds; ids that no longer exist (unplugged) are dropped from the set.
+// Export-/import-setup buttons. Export downloads the full setup as JSON; import
+// reads a JSON file, validates it, and replaces the whole setup.
+function buildSetupIO(): HTMLElement {
+  const group = document.createElement('div');
+  group.className = 'io-group';
+
+  const exportBtn = document.createElement('button');
+  exportBtn.className = 'btn-io';
+  exportBtn.textContent = 'Export';
+  exportBtn.title = 'Download the whole setup as a JSON file';
+  exportBtn.style.touchAction = 'none';
+  exportBtn.addEventListener('pointerdown', () => {
+    const json = JSON.stringify(serialize(tracks, scheduler.bpm, [...clockPortNames]), null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'knobsody-setup.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+  group.appendChild(exportBtn);
+
+  const importBtn = document.createElement('button');
+  importBtn.className = 'btn-io';
+  importBtn.textContent = 'Import';
+  importBtn.title = 'Load a setup from a JSON file';
+  importBtn.style.touchAction = 'none';
+
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept = 'application/json,.json';
+  fileInput.style.display = 'none';
+  fileInput.addEventListener('change', async () => {
+    const file = fileInput.files?.[0];
+    fileInput.value = ''; // allow re-importing the same file
+    if (!file) return;
+    try {
+      const state = sanitize(JSON.parse(await file.text()));
+      if (!state) { alert('That file is not a valid Knobsody setup.'); return; }
+      applyState(state);
+      // Resolve ports against the currently enumerated MIDI outputs.
+      panels.forEach(p => p.populatePorts());
+      refreshClockPorts();
+      requestSave();
+    } catch {
+      alert('Could not read that file.');
+    }
+  });
+
+  importBtn.addEventListener('pointerdown', () => fileInput.click());
+  group.appendChild(importBtn);
+  group.appendChild(fileInput);
+  return group;
+}
+
+// (Re)build the clock-out port toggles. Selection is name-based, so it survives
+// replug and restore automatically; a port simply shows active when its name is
+// in clockPortNames.
 function refreshClockPorts(): void {
   const outputs = midi.getOutputs();
-  const liveIds = new Set(outputs.map(o => o.id));
-  for (const id of [...clockPortIds]) {
-    if (!liveIds.has(id)) clockPortIds.delete(id);
-  }
-
   clockOutContainer.innerHTML = '';
+
   if (outputs.length === 0) {
     const none = document.createElement('span');
     none.className = 'clock-none';
@@ -194,19 +307,21 @@ function refreshClockPorts(): void {
   }
 
   for (const o of outputs) {
+    const name = o.name ?? o.id;
     const btn = document.createElement('button');
-    btn.className = 'btn-clock-port' + (clockPortIds.has(o.id) ? ' active' : '');
-    btn.textContent = o.name ?? o.id;
-    btn.title = `Send MIDI clock to ${o.name ?? o.id}`;
+    btn.className = 'btn-clock-port' + (clockPortNames.has(name) ? ' active' : '');
+    btn.textContent = name;
+    btn.title = `Send MIDI clock to ${name}`;
     btn.style.touchAction = 'none';
     btn.addEventListener('pointerdown', () => {
-      if (clockPortIds.has(o.id)) {
-        clockPortIds.delete(o.id);
+      if (clockPortNames.has(name)) {
+        clockPortNames.delete(name);
         btn.classList.remove('active');
       } else {
-        clockPortIds.add(o.id);
+        clockPortNames.add(name);
         btn.classList.add('active');
       }
+      requestSave();
     });
     clockOutContainer.appendChild(btn);
   }
@@ -231,8 +346,13 @@ async function init(): Promise<void> {
   tracksContainer.className = 'tracks-container';
   app.appendChild(tracksContainer);
 
-  // Start with a single track (matches the previous hardcoded behaviour).
-  addTrack();
+  // Restore the saved setup, or start with a single default track.
+  const saved = load();
+  if (saved && saved.tracks.length > 0) {
+    applyState(saved);
+  } else {
+    addTrack();
+  }
 
   try {
     await midi.init();

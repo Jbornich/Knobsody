@@ -194,6 +194,29 @@ html, body {
   font-style: italic;
 }
 
+/* Export / import setup buttons */
+.io-group {
+  display: flex;
+  gap: 6px;
+}
+
+.btn-io {
+  height: 48px;
+  padding: 0 12px;
+  border-radius: 6px;
+  border: 1px solid #3A3A38;
+  background: #2A2A28;
+  color: #A8A898;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.btn-io:active { background: #1A1A18; }
+
 /* + track button */
 .btn-add-track {
   min-width: 72px;
@@ -339,6 +362,49 @@ html, body {
 }
 
 .btn-remove-track:active { background: #1A1010; }
+
+/* Gate-length knob group (compact knob + % readout) */
+.gate-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gate-value {
+  font-size: 12px;
+  font-weight: 700;
+  color: #A8A898;
+  min-width: 34px;
+}
+
+/* Scale selector group (root + type) */
+.scale-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Randomize button */
+.btn-randomize {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 4px;
+  border: 1px solid #4A4A48;
+  background: #1A1A18;
+  color: #C8C8B8;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  touch-action: none;
+  white-space: nowrap;
+}
+
+.btn-randomize:active {
+  background: #3A2A08;
+  color: #E8A020;
+}
 
 /* ── Steps container ───────────────────────────────────────────────────── */
 

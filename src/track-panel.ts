@@ -1,8 +1,14 @@
 import { Knob } from './knob';
 import { Switch } from './switch';
-import { defaultStep, midiToNoteName } from './types';
-import type { TrackState } from './types';
+import {
+  defaultStep, midiToNoteName, randomizeTrack,
+  NOTE_MIN, NOTE_MAX, NOTE_DEFAULT,
+  GATE_MIN, GATE_MAX, GATE_DEFAULT, PITCH_CLASS_NAMES,
+} from './types';
+import type { TrackState, ScaleType } from './types';
 import type { MidiManager } from './midi';
+
+const SCALE_TYPES: ScaleType[] = ['chromatic', 'major', 'minor', 'pentatonic'];
 
 // One sequencer panel bound to a single TrackState. Owns all of its DOM and
 // per-step element arrays, so the app can hold many panels side by side and
@@ -11,6 +17,7 @@ export class TrackPanel {
   readonly el: HTMLElement;
   private readonly track: TrackState;
   private readonly midi: MidiManager;
+  private readonly onChange: () => void;
 
   private stepsContainer!: HTMLElement;
   private portSelect!: HTMLSelectElement;
@@ -23,9 +30,12 @@ export class TrackPanel {
 
   private lastLitStep = -1;
 
-  constructor(track: TrackState, midi: MidiManager, onRemove: () => void) {
+  // onChange is fired whenever user-visible track data mutates, so the app can
+  // debounce-save. It is NOT fired during programmatic restore (populatePorts).
+  constructor(track: TrackState, midi: MidiManager, onRemove: () => void, onChange: () => void) {
     this.track = track;
     this.midi = midi;
+    this.onChange = onChange;
     this.el = this.build(onRemove);
   }
 
@@ -45,10 +55,10 @@ export class TrackPanel {
   }
 
   // Refresh the output-port dropdown (called on load and on MIDI statechange).
-  // Restores the current selection by id, falling back to "no output".
+  // Restores selection by id if still present, else by the saved port name
+  // (graceful fallback when a port comes back after a replug or restore).
   populatePorts(): void {
     const outputs = this.midi.getOutputs();
-    const prev = this.portSelect.value;
     this.portSelect.innerHTML = '<option value="">— no output —</option>';
     for (const o of outputs) {
       const opt = document.createElement('option');
@@ -56,9 +66,15 @@ export class TrackPanel {
       opt.textContent = o.name ?? o.id;
       this.portSelect.appendChild(opt);
     }
-    if (outputs.some(o => o.id === prev)) {
-      this.portSelect.value = prev;
+
+    let selId = '';
+    if (this.track.midiOutput && outputs.some(o => o.id === this.track.midiOutput!.id)) {
+      selId = this.track.midiOutput.id;
+    } else if (this.track.desiredPortName) {
+      const match = outputs.find(o => o.name === this.track.desiredPortName);
+      if (match) selId = match.id;
     }
+    this.portSelect.value = selId;
     this.applyPortSelection();
   }
 
@@ -66,9 +82,10 @@ export class TrackPanel {
 
   private applyPortSelection(): void {
     const id = this.portSelect.value;
-    this.track.midiOutput = id
-      ? (this.midi.getOutputs().find(o => o.id === id) ?? null)
-      : null;
+    const port = id ? (this.midi.getOutputs().find(o => o.id === id) ?? null) : null;
+    this.track.midiOutput = port;
+    // Remember the chosen name so it can be restored across sessions / replugs.
+    this.track.desiredPortName = port ? (port.name ?? null) : null;
   }
 
   // Change the track length, preserving existing step data. The data array only
@@ -80,7 +97,7 @@ export class TrackPanel {
   }
 
   // (Re)build the step cells into rows of 16 and reset the per-step element
-  // arrays. Called on first build and on every length change.
+  // arrays. Called on first build, on length change, and after Randomize.
   private renderSteps(): void {
     this.ledEls.length = 0;
     this.cellEls.length = 0;
@@ -114,10 +131,16 @@ export class TrackPanel {
     this.ledEls.push(led);
     cell.appendChild(led);
 
-    // Knob
-    const knob = new Knob(this.track.steps[i].note, (note) => {
-      this.track.steps[i].note = note;
-      this.noteNameEls[i].textContent = midiToNoteName(note);
+    // Knob — chromatic MIDI note, C1–C6, double-tap resets to C3.
+    const knob = new Knob({
+      min: NOTE_MIN, max: NOTE_MAX, value: this.track.steps[i].note, default: NOTE_DEFAULT,
+      step: 1, pxPerUnit: 2,
+      title: midiToNoteName,
+      onChange: (note) => {
+        this.track.steps[i].note = note;
+        this.noteNameEls[i].textContent = midiToNoteName(note);
+        this.onChange();
+      },
     });
     this.knobInstances.push(knob);
     cell.appendChild(knob.svgEl);
@@ -133,6 +156,7 @@ export class TrackPanel {
     const sw = new Switch(this.track.steps[i].mode, (mode) => {
       this.track.steps[i].mode = mode;
       this.updateDimming();
+      this.onChange();
     });
     cell.appendChild(sw.svgEl);
 
@@ -173,20 +197,17 @@ export class TrackPanel {
     header.appendChild(nameEl);
 
     // MIDI port selector
-    const portLabel = document.createElement('label');
-    portLabel.textContent = 'Port:';
-    header.appendChild(portLabel);
-
+    header.appendChild(this.label('Port:'));
     this.portSelect = document.createElement('select');
     this.portSelect.style.touchAction = 'none';
-    this.portSelect.addEventListener('change', () => this.applyPortSelection());
+    this.portSelect.addEventListener('change', () => {
+      this.applyPortSelection();
+      this.onChange();
+    });
     header.appendChild(this.portSelect);
 
     // MIDI channel selector
-    const chLabel = document.createElement('label');
-    chLabel.textContent = 'Ch:';
-    header.appendChild(chLabel);
-
+    header.appendChild(this.label('Ch:'));
     const chSelect = document.createElement('select');
     chSelect.style.touchAction = 'none';
     for (let i = 1; i <= 16; i++) {
@@ -198,6 +219,7 @@ export class TrackPanel {
     chSelect.value = String(this.track.midiChannel);
     chSelect.addEventListener('change', () => {
       this.track.midiChannel = parseInt(chSelect.value, 10);
+      this.onChange();
     });
     header.appendChild(chSelect);
 
@@ -214,10 +236,30 @@ export class TrackPanel {
         lengthGroup.querySelectorAll('.btn-len').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         this.setLength(len);
+        this.onChange();
       });
       lengthGroup.appendChild(btn);
     }
     header.appendChild(lengthGroup);
+
+    // Gate-length knob (10–95 % of the step duration)
+    header.appendChild(this.buildGateControl());
+
+    // Scale selector (root + type) — drives Randomize only
+    header.appendChild(this.buildScaleControl());
+
+    // Randomize button
+    const randBtn = document.createElement('button');
+    randBtn.className = 'btn-randomize';
+    randBtn.textContent = 'RANDOMIZE';
+    randBtn.title = 'Randomize notes (scale-quantized) and PLAY/MUTE pattern';
+    randBtn.style.touchAction = 'none';
+    randBtn.addEventListener('pointerdown', () => {
+      randomizeTrack(this.track);
+      this.renderSteps();
+      this.onChange();
+    });
+    header.appendChild(randBtn);
 
     // Remove-track button (pushed to the far right)
     const removeBtn = document.createElement('button');
@@ -237,5 +279,72 @@ export class TrackPanel {
     this.renderSteps();
 
     return panel;
+  }
+
+  private buildGateControl(): HTMLElement {
+    const group = document.createElement('div');
+    group.className = 'gate-group';
+    group.appendChild(this.label('Gate'));
+
+    const valueEl = document.createElement('span');
+    valueEl.className = 'gate-value';
+    valueEl.textContent = Math.round(this.track.gateLength * 100) + '%';
+
+    const knob = new Knob({
+      min: GATE_MIN, max: GATE_MAX, value: this.track.gateLength, default: GATE_DEFAULT,
+      step: 0.01, pxPerUnit: 200, size: 56,
+      title: v => `Gate ${Math.round(v * 100)}%`,
+      onChange: (v) => {
+        this.track.gateLength = v;
+        valueEl.textContent = Math.round(v * 100) + '%';
+        this.onChange();
+      },
+    });
+    group.appendChild(knob.svgEl);
+    group.appendChild(valueEl);
+    return group;
+  }
+
+  private buildScaleControl(): HTMLElement {
+    const group = document.createElement('div');
+    group.className = 'scale-group';
+    group.appendChild(this.label('Scale'));
+
+    const rootSelect = document.createElement('select');
+    rootSelect.style.touchAction = 'none';
+    PITCH_CLASS_NAMES.forEach((name, pc) => {
+      const opt = document.createElement('option');
+      opt.value = String(pc);
+      opt.textContent = name;
+      rootSelect.appendChild(opt);
+    });
+    rootSelect.value = String(this.track.scaleRoot);
+    rootSelect.addEventListener('change', () => {
+      this.track.scaleRoot = parseInt(rootSelect.value, 10);
+      this.onChange();
+    });
+    group.appendChild(rootSelect);
+
+    const typeSelect = document.createElement('select');
+    typeSelect.style.touchAction = 'none';
+    for (const t of SCALE_TYPES) {
+      const opt = document.createElement('option');
+      opt.value = t;
+      opt.textContent = t;
+      typeSelect.appendChild(opt);
+    }
+    typeSelect.value = this.track.scaleType;
+    typeSelect.addEventListener('change', () => {
+      this.track.scaleType = typeSelect.value as ScaleType;
+      this.onChange();
+    });
+    group.appendChild(typeSelect);
+    return group;
+  }
+
+  private label(text: string): HTMLLabelElement {
+    const l = document.createElement('label');
+    l.textContent = text;
+    return l;
   }
 }

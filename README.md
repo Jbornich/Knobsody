@@ -41,9 +41,30 @@ Or open `dist/index.html` directly in Edge kiosk mode.
 
 Push to `main` — the included GitHub Actions workflow (`.github/workflows/deploy.yml`) builds and publishes `dist/` to Pages automatically.
 
+## Saving your setup
+
+- The full setup (tracks, steps, tempo, port/channel choices, gate, scale,
+  clock-out ports) **autosaves to localStorage** on every change and restores
+  on load. MIDI ports are remembered by name and re-selected when available,
+  falling back to "no output" if a port is missing.
+- Use **Export** to download the whole setup as a JSON file and **Import** to
+  load one back — handy for backups and for moving a setup between machines or
+  `file://` paths (where localStorage does not carry over).
+
+## Per-track controls
+
+- **Knob** — MIDI note per step (drag vertically; double-tap resets to C3).
+- **Switch** — PLAY / MUTE / RESET (RESET shortens the loop → polyrhythm).
+- **Length** — 8 / 16 / 32 steps.
+- **Gate** — note length, 10–95 % of the step.
+- **Scale** (root + type) + **Randomize** — fills the track with fresh
+  scale-quantized notes and a random PLAY/MUTE pattern; RESET steps are left
+  untouched so the loop length never changes silently.
+
 ## Milestones
 
 - [x] **M1** — MIDI out, lookahead scheduler, one 8-step track (knobs + LEDs)
-- [ ] M2 — 3-position toggles (MUTE/RESET), 16/32 step length
-- [ ] M3 — Multi-track, per-track port/channel, MIDI clock out
-- [ ] M4 — Persistence, gate-length knob, polish
+- [x] **M2** — 3-position toggles (MUTE/RESET), 16/32 step length
+- [x] **M3** — Multi-track, per-track port/channel, MIDI clock out
+- [x] **M4** — Persistence (localStorage + JSON export/import), gate-length
+  knob, per-track scale selector + Randomize, polish

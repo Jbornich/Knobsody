@@ -1,58 +1,77 @@
-import { NOTE_MIN, NOTE_MAX, NOTE_DEFAULT, midiToNoteName } from './types';
-
-const ANGLE_MIN = -150; // degrees — fully counter-clockwise (C1)
-const ANGLE_MAX = 150;  // degrees — fully clockwise (C6)
-const PX_PER_SEMITONE = 2; // vertical pixels per semitone change
-
-function noteToAngle(note: number): number {
-  const t = (note - NOTE_MIN) / (NOTE_MAX - NOTE_MIN);
-  return ANGLE_MIN + t * (ANGLE_MAX - ANGLE_MIN);
-}
+const ANGLE_MIN = -150; // degrees — fully counter-clockwise (min value)
+const ANGLE_MAX = 150;  // degrees — fully clockwise (max value)
 
 function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v;
 }
 
+// Configuration for a reusable rotary knob. The step knob (chromatic MIDI note)
+// and the gate-length knob are both instances of this — only the numeric range,
+// granularity and label formatting differ.
+export interface KnobConfig {
+  min: number;
+  max: number;
+  value: number;          // initial value
+  default: number;        // value restored on double-tap / double-click
+  step: number;           // rounding granularity (1 = integer semitones)
+  pxPerUnit: number;      // vertical drag pixels per 1 unit of value
+  size?: number;          // rendered diameter in px (default 64)
+  title?: (v: number) => string; // tooltip text for the current value
+  onChange: (v: number) => void;
+}
+
 export class Knob {
   readonly svgEl: SVGSVGElement;
   private pointerLine: SVGLineElement;
-  private note: number;
-  private onChange: (note: number) => void;
+  private value: number;
+  private readonly cfg: Required<Pick<KnobConfig, 'min' | 'max' | 'default' | 'step' | 'pxPerUnit'>>
+    & Pick<KnobConfig, 'title' | 'onChange'>;
 
   // Per-pointer drag state for multi-touch
-  private ptrs = new Map<number, { startY: number; startNote: number }>();
+  private ptrs = new Map<number, { startY: number; startValue: number }>();
   private lastTapMs = 0;
 
-  constructor(initialNote = NOTE_DEFAULT, onChange: (note: number) => void) {
-    this.note = clamp(initialNote, NOTE_MIN, NOTE_MAX);
-    this.onChange = onChange;
+  constructor(config: KnobConfig) {
+    this.cfg = config;
+    this.value = clamp(config.value, config.min, config.max);
 
-    const { svg, line } = this.buildSvg();
+    const { svg, line } = this.buildSvg(config.size ?? 64);
     this.svgEl = svg;
     this.pointerLine = line;
     this.applyRotation();
     this.attachEvents();
   }
 
-  getNote(): number { return this.note; }
+  getValue(): number { return this.value; }
 
-  setNote(note: number, emit = false): void {
-    this.note = clamp(Math.round(note), NOTE_MIN, NOTE_MAX);
+  setValue(value: number, emit = false): void {
+    this.value = this.quantize(value);
     this.applyRotation();
-    if (emit) this.onChange(this.note);
+    if (emit) this.cfg.onChange(this.value);
+  }
+
+  private quantize(v: number): number {
+    const clamped = clamp(v, this.cfg.min, this.cfg.max);
+    const snapped = Math.round(clamped / this.cfg.step) * this.cfg.step;
+    return clamp(snapped, this.cfg.min, this.cfg.max);
+  }
+
+  private valueToAngle(v: number): number {
+    const t = (v - this.cfg.min) / (this.cfg.max - this.cfg.min);
+    return ANGLE_MIN + t * (ANGLE_MAX - ANGLE_MIN);
   }
 
   private applyRotation(): void {
-    const angle = noteToAngle(this.note);
+    const angle = this.valueToAngle(this.value);
     this.pointerLine.setAttribute('transform', `rotate(${angle}, 32, 32)`);
-    this.svgEl.setAttribute('title', midiToNoteName(this.note));
+    if (this.cfg.title) this.svgEl.setAttribute('title', this.cfg.title(this.value));
   }
 
-  private buildSvg(): { svg: SVGSVGElement; line: SVGLineElement } {
+  private buildSvg(size: number): { svg: SVGSVGElement; line: SVGLineElement } {
     const NS = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(NS, 'svg');
-    svg.setAttribute('width', '64');
-    svg.setAttribute('height', '64');
+    svg.setAttribute('width', String(size));
+    svg.setAttribute('height', String(size));
     svg.setAttribute('viewBox', '0 0 64 64');
     svg.classList.add('knob-svg');
 
@@ -111,13 +130,13 @@ export class Knob {
       // Double-tap / double-click detection
       const now = Date.now();
       if (now - this.lastTapMs < 350 && this.ptrs.size === 0) {
-        this.setNote(NOTE_DEFAULT, true);
+        this.setValue(this.cfg.default, true);
         this.lastTapMs = 0;
         return;
       }
       this.lastTapMs = now;
 
-      this.ptrs.set(e.pointerId, { startY: e.clientY, startNote: this.note });
+      this.ptrs.set(e.pointerId, { startY: e.clientY, startValue: this.value });
     });
 
     el.addEventListener('pointermove', (e: PointerEvent) => {
@@ -125,13 +144,13 @@ export class Knob {
       if (!state) return;
       e.preventDefault();
 
-      const dy = state.startY - e.clientY; // up = positive = higher note
-      const delta = dy / PX_PER_SEMITONE;
-      const newNote = clamp(Math.round(state.startNote + delta), NOTE_MIN, NOTE_MAX);
-      if (newNote !== this.note) {
-        this.note = newNote;
+      const dy = state.startY - e.clientY; // up = positive = higher value
+      const delta = dy / this.cfg.pxPerUnit;
+      const newValue = this.quantize(state.startValue + delta);
+      if (newValue !== this.value) {
+        this.value = newValue;
         this.applyRotation();
-        this.onChange(newNote);
+        this.cfg.onChange(newValue);
       }
     });
 
