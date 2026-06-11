@@ -165,15 +165,6 @@ function buildTransport(): HTMLElement {
   });
   bar.appendChild(runBtn);
 
-  // Global manual STEP — advances every track one step while stopped.
-  const stepAllBtn = document.createElement('button');
-  stepAllBtn.className = 'btn-step btn-step-top';
-  stepAllBtn.textContent = 'STEP ▸';
-  stepAllBtn.title = 'Advance all tracks one step (when stopped)';
-  stepAllBtn.style.touchAction = 'none';
-  stepAllBtn.addEventListener('pointerdown', () => scheduler.manualStepAll());
-  bar.appendChild(stepAllBtn);
-
   bar.appendChild(divider());
 
   // BPM control
@@ -234,6 +225,15 @@ function buildTransport(): HTMLElement {
 
   // Export / import setup as JSON
   bar.appendChild(buildSetupIO());
+
+  // Global manual STEP — advances every track one step while stopped.
+  const stepAllBtn = document.createElement('button');
+  stepAllBtn.className = 'btn-step btn-step-top';
+  stepAllBtn.textContent = 'STEP ▸';
+  stepAllBtn.title = 'Advance all tracks one step (when stopped)';
+  stepAllBtn.style.touchAction = 'none';
+  stepAllBtn.addEventListener('pointerdown', () => scheduler.manualStepAll());
+  bar.appendChild(stepAllBtn);
 
   // Fullscreen toggle (far right)
   const fsBtn = document.createElement('button');
