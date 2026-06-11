@@ -26,27 +26,39 @@ Produces two usable outputs from the same `dist/` folder:
 
 ## Recommended live setup
 
-Run `npm run build`, then open the self-contained `dist/index.html` directly in
-Edge kiosk mode:
+The app is published to GitHub Pages on every push to `main`. Open it in Edge
+kiosk mode (HTTPS, so the MIDI permission is remembered):
+
+```
+msedge --kiosk https://jbornich.github.io/Knobsody/
+```
+
+You need to be online to load the page; after that it runs locally in the
+browser. Saved state (localStorage) is tied to this URL + browser, so use
+**Export / Import** to move a setup between machines.
+
+### Offline alternative — single-file build
+
+`npm run build` also produces a self-contained `dist/index.html` that runs from
+`file://` with no server:
 
 ```
 msedge --kiosk "file:///C:/path/to/Knobsody/dist/index.html"
 ```
 
-Keep `dist/index.html` at a **stable path** so saved state persists (see caveats
-below), and back up your setup with **Export** before moving it.
+Keep it at a **stable path** so saved state persists, and **Export** before
+moving it.
 
 ## `file://` caveats
 
-- **MIDI permission** may be re-prompted each session when using `file://`. This is a browser security policy.
+- **MIDI permission** may be re-prompted each session when using `file://`. This is a browser security policy — the hosted HTTPS URL avoids it.
 - **localStorage** is tied to the exact file path. Moving or renaming the file will lose saved state. Use the JSON export to back up your setup.
 
-## Hosting (optional)
+## GitHub Pages deployment
 
-This repo is **private**, so GitHub Pages is not used (Pages on private repos
-requires a paid plan). The `file://` single-file build above is the supported
-live setup. If you later make the repo public, the same `dist/` output can be
-published to GitHub Pages — `base: './'` already supports both targets.
+Push to `main` — the GitHub Actions workflow (`.github/workflows/deploy.yml`)
+builds and publishes `dist/` to Pages automatically. `base: './'` supports both
+the Pages subpath (`/Knobsody/`) and the `file://` single-file build.
 
 ## Saving your setup
 
