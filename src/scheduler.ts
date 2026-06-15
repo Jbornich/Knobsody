@@ -284,13 +284,17 @@ export class Scheduler {
       }
 
       const effLen = effectiveLength(track);
+      const swingDelay = track.swing * 0.5 * stepDuration;
       while (cur.nextTime < lookaheadEnd) {
         // If the effective length shrank live (a RESET was just added past the
         // current position), wrap back to step 1 immediately.
         let stepIdx = cur.nextStep;
         if (stepIdx >= effLen) stepIdx = 0;
 
-        this.scheduleStep(track, stepIdx, cur.nextTime, stepDuration);
+        // Swing delays the off-beat (odd) steps; the straight grid time still
+        // accumulates below so swing never drifts.
+        const playTime = cur.nextTime + (stepIdx % 2 === 1 ? swingDelay : 0);
+        this.scheduleStep(track, stepIdx, playTime, stepDuration);
 
         cur.nextStep = (stepIdx + 1) % effLen;
         cur.nextTime += stepDuration;
@@ -326,6 +330,10 @@ export class Scheduler {
 
     const step = track.steps[stepIndex];
     if (!track.midiOutput || track.muted || step.mode !== 'play') return;
+
+    // Probability: each trigger independently fires with track.probability, so
+    // the pattern varies between loops. The step still kept its LED slot above.
+    if (track.probability < 1 && Math.random() >= track.probability) return;
 
     const ch = (track.midiChannel - 1) & 0xF;
     const onTime = this.toMidiStamp(audioTime);

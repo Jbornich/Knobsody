@@ -123,9 +123,13 @@ for live standalone use with hardware synthesizers. Desktop only, Chrome/Edge
   red = RESET top, yellow = MUTE middle, green = PLAY bottom), step number.
 - Panel header: track name, per-track Play/Stop + Mute toggles, MIDI
   port/channel selectors, length selector (8/16/32 buttons), per-track
-  gate-length knob, scale selector (root + type), a Randomize button, a manual
-  STEP button, and (right-aligned) Duplicate + Remove. Duplicate inserts a copy
-  directly below the track.
+  gate-length knob, scale selector (root + type), swing + probability knobs, a
+  Randomize button, a manual STEP button, and (right-aligned) Duplicate +
+  Remove. Duplicate inserts a copy directly below the track.
+- Per-track Swing delays the off-beat (odd) steps for a shuffle feel without
+  drifting the grid; per-track Probability is the chance each PLAY step actually
+  fires (rolled per trigger, so the pattern varies between loops — the step
+  still keeps its LED/timing slot when skipped).
 - Per-track Play/Stop starts/stops just that track, independently of the global
   transport — pressing a track's PLAY starts it even when RUN is not engaged.
   The shared clock runs whenever at least one track is playing; a track restarts
@@ -195,8 +199,9 @@ for live standalone use with hardware synthesizers. Desktop only, Chrome/Edge
   `msedge --kiosk https://<username>.github.io/knobsody/`.
 
 ## Non-goals (v1)
-- External clock sync (slave mode), MIDI input, CC sequencing, swing,
-  per-step velocity/probability, manual quantize-on-turn for knobs
+- External clock sync (slave mode), MIDI input, CC sequencing,
+  per-step velocity, per-step probability (probability is per-track),
+  manual quantize-on-turn for knobs
   (the scale selector drives Randomize and re-quantizes the sequence on
   change, but the knobs stay chromatic while dragging),
   small-screen/phone

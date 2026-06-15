@@ -17,6 +17,8 @@ export interface TrackState {
   gateLength: number;    // 0.10–0.95
   scaleRoot: number;     // pitch class 0–11 (0 = C)
   scaleType: ScaleType;
+  swing: number;         // 0–1; delays off-beat (odd) steps for shuffle feel
+  probability: number;   // 0–1; chance each PLAY step actually fires (1 = always)
   muted: boolean;        // advances + chases LEDs but sends no notes
   enabled: boolean;      // per-track Play/Stop = currently playing (transient)
   // Transient: the saved port name to reselect once MIDI ports enumerate.
@@ -55,6 +57,8 @@ export function createTrack(n: number): TrackState {
     gateLength: 0.5,
     scaleRoot: 0,
     scaleType: 'chromatic',
+    swing: 0,
+    probability: 1,
     muted: false,
     enabled: false, // "playing" is a transient transport state; tracks start stopped
   };

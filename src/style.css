@@ -453,14 +453,14 @@ html.fs-scaled #app {
 
 .btn-remove-track:active { background: #1A1010; }
 
-/* Gate-length knob group (compact knob + % readout) */
-.gate-group {
+/* Compact labelled knob group + % readout (gate, swing, probability) */
+.knob-control {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.gate-value {
+.knob-value {
   font-size: 12px;
   font-weight: 700;
   color: #A8A898;

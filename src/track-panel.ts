@@ -316,10 +316,23 @@ export class TrackPanel {
     header.appendChild(lengthGroup);
 
     // Gate-length knob (10–95 % of the step duration)
-    header.appendChild(this.buildGateControl());
+    header.appendChild(this.buildPercentKnob('Gate', {
+      value: this.track.gateLength, min: GATE_MIN, max: GATE_MAX, default: GATE_DEFAULT,
+      apply: (v) => { this.track.gateLength = v; },
+    }));
 
     // Scale selector (root + type) — drives Randomize only
     header.appendChild(this.buildScaleControl());
+
+    // Swing (delays off-beat steps) and Probability (chance each PLAY step fires)
+    header.appendChild(this.buildPercentKnob('Swing', {
+      value: this.track.swing, min: 0, max: 1, default: 0,
+      apply: (v) => { this.track.swing = v; },
+    }));
+    header.appendChild(this.buildPercentKnob('Prob', {
+      value: this.track.probability, min: 0, max: 1, default: 1,
+      apply: (v) => { this.track.probability = v; },
+    }));
 
     // Randomize button
     const randBtn = document.createElement('button');
@@ -376,21 +389,25 @@ export class TrackPanel {
     return panel;
   }
 
-  private buildGateControl(): HTMLElement {
+  // A compact labelled knob shown as a percentage (gate, swing, probability).
+  private buildPercentKnob(
+    labelText: string,
+    cfg: { value: number; min: number; max: number; default: number; apply: (v: number) => void },
+  ): HTMLElement {
     const group = document.createElement('div');
-    group.className = 'gate-group';
-    group.appendChild(this.label('Gate'));
+    group.className = 'knob-control';
+    group.appendChild(this.label(labelText));
 
     const valueEl = document.createElement('span');
-    valueEl.className = 'gate-value';
-    valueEl.textContent = Math.round(this.track.gateLength * 100) + '%';
+    valueEl.className = 'knob-value';
+    valueEl.textContent = Math.round(cfg.value * 100) + '%';
 
     const knob = new Knob({
-      min: GATE_MIN, max: GATE_MAX, value: this.track.gateLength, default: GATE_DEFAULT,
-      step: 0.01, pxPerUnit: 200, size: 56,
-      title: v => `Gate ${Math.round(v * 100)}%`,
+      min: cfg.min, max: cfg.max, value: cfg.value, default: cfg.default,
+      step: 0.01, pxPerUnit: 180, size: 48,
+      title: v => `${labelText} ${Math.round(v * 100)}%`,
       onChange: (v) => {
-        this.track.gateLength = v;
+        cfg.apply(v);
         valueEl.textContent = Math.round(v * 100) + '%';
         this.onChange();
       },

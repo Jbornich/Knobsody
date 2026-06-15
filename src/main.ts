@@ -113,8 +113,10 @@ function duplicateTrack(source: TrackState): void {
   clone.gateLength = source.gateLength;
   clone.scaleRoot = source.scaleRoot;
   clone.scaleType = source.scaleType;
+  clone.swing = source.swing;
+  clone.probability = source.probability;
   clone.muted = source.muted;
-  clone.enabled = source.enabled;
+  clone.enabled = false; // the copy starts stopped
   clone.midiOutput = source.midiOutput;
   clone.desiredPortName = source.desiredPortName ?? (source.midiOutput?.name ?? null);
   mountTrack(clone, idx + 1);
