@@ -5,7 +5,7 @@ import {
   NOTE_MIN, NOTE_MAX, NOTE_DEFAULT,
   GATE_MIN, GATE_MAX, GATE_DEFAULT, PITCH_CLASS_NAMES,
 } from './types';
-import type { TrackState, ScaleType } from './types';
+import type { TrackState, ScaleType, StepData } from './types';
 import type { MidiManager } from './midi';
 
 const SCALE_TYPES: ScaleType[] = ['chromatic', 'major', 'minor', 'pentatonic'];
@@ -24,8 +24,12 @@ export class TrackPanel {
   // Re-renders the per-track Play/Stop + Mute buttons from current state.
   private renderControls: () => void = () => {};
 
-  private stepsContainer!: HTMLElement;
+  private stepsRows!: HTMLElement;
   private portSelect!: HTMLSelectElement;
+  private undoBtn?: HTMLButtonElement;
+
+  // One-level undo/redo snapshot of step data (taken before Randomize).
+  private undoSnapshot: StepData[] | null = null;
 
   // Per-step element arrays, rebuilt on every length change.
   private ledEls: HTMLDivElement[] = [];
@@ -116,6 +120,9 @@ export class TrackPanel {
   private setLength(newLen: 8 | 16 | 32): void {
     while (this.track.steps.length < newLen) this.track.steps.push(defaultStep());
     this.track.length = newLen;
+    // The undo snapshot was sized for the old length; drop it to avoid a mismatch.
+    this.undoSnapshot = null;
+    this.refreshUndoBtn();
     this.renderSteps();
   }
 
@@ -127,7 +134,7 @@ export class TrackPanel {
     this.knobInstances.length = 0;
     this.noteNameEls.length = 0;
     this.lastLitStep = -1;
-    this.stepsContainer.innerHTML = '';
+    this.stepsRows.innerHTML = '';
 
     const PER_ROW = 16;
     for (let rowStart = 0; rowStart < this.track.length; rowStart += PER_ROW) {
@@ -137,7 +144,7 @@ export class TrackPanel {
       for (let i = rowStart; i < rowEnd; i++) {
         row.appendChild(this.buildStepCell(i));
       }
-      this.stepsContainer.appendChild(row);
+      this.stepsRows.appendChild(row);
     }
     this.updateDimming();
   }
@@ -228,31 +235,28 @@ export class TrackPanel {
     const panel = document.createElement('div');
     panel.className = 'track-panel';
 
-    // ── Header ────────────────────────────────────────────────────────────
+    // ── Header (grouped) ───────────────────────────────────────────────────
     const header = document.createElement('div');
     header.className = 'track-header';
 
+    // Group: track name + transport (Play/Stop, Mute).
     const nameEl = document.createElement('span');
     nameEl.className = 'track-name';
     nameEl.textContent = this.track.name;
-    header.appendChild(nameEl);
 
-    // Per-track Play/Stop — starts/stops just this track (independently of the
-    // global transport). Label/colour show the ACTION, like the global RUN/STOP
-    // button: a playing track shows red STOP, a stopped track shows green PLAY.
+    // Play/Stop label/colour show the ACTION, like the global RUN/STOP button:
+    // a playing track shows red STOP, a stopped track shows green PLAY.
     const playBtn = document.createElement('button');
     playBtn.className = 'btn-track-toggle';
     playBtn.style.touchAction = 'none';
+    playBtn.title = 'Play / stop this track';
     const renderPlay = () => {
       playBtn.textContent = this.track.enabled ? 'STOP' : 'PLAY';
       playBtn.classList.toggle('off', this.track.enabled);
       playBtn.classList.toggle('on-play', !this.track.enabled);
     };
-    playBtn.title = 'Play / stop this track';
     playBtn.addEventListener('pointerdown', () => this.onTogglePlay());
-    header.appendChild(playBtn);
 
-    // Per-track Mute — keeps running (LEDs chase) but sends no notes.
     const muteBtn = document.createElement('button');
     muteBtn.className = 'btn-track-toggle';
     muteBtn.textContent = 'MUTE';
@@ -264,23 +268,17 @@ export class TrackPanel {
       renderMute();
       this.onChange();
     });
-    header.appendChild(muteBtn);
-
     this.renderControls = () => { renderPlay(); renderMute(); };
     this.renderControls();
+    header.appendChild(this.group(nameEl, playBtn, muteBtn));
 
-    // MIDI port selector
-    header.appendChild(this.label('Port:'));
+    // Group: MIDI port + channel.
     this.portSelect = document.createElement('select');
     this.portSelect.style.touchAction = 'none';
     this.portSelect.addEventListener('change', () => {
       this.applyPortSelection();
       this.onChange();
     });
-    header.appendChild(this.portSelect);
-
-    // MIDI channel selector
-    header.appendChild(this.label('Ch:'));
     const chSelect = document.createElement('select');
     chSelect.style.touchAction = 'none';
     for (let i = 1; i <= 16; i++) {
@@ -294,9 +292,9 @@ export class TrackPanel {
       this.track.midiChannel = parseInt(chSelect.value, 10);
       this.onChange();
     });
-    header.appendChild(chSelect);
+    header.appendChild(this.group(this.label('Port:'), this.portSelect, this.label('Ch:'), chSelect));
 
-    // Length selector (8 / 16 / 32)
+    // Group: length selector (8 / 16 / 32).
     const lengthGroup = document.createElement('div');
     lengthGroup.className = 'length-group';
     for (const len of [8, 16, 32] as const) {
@@ -313,60 +311,32 @@ export class TrackPanel {
       });
       lengthGroup.appendChild(btn);
     }
-    header.appendChild(lengthGroup);
+    header.appendChild(this.group(this.label('Len:'), lengthGroup));
 
-    // Gate-length knob (10–95 % of the step duration)
-    header.appendChild(this.buildPercentKnob('Gate', {
-      value: this.track.gateLength, min: GATE_MIN, max: GATE_MAX, default: GATE_DEFAULT,
-      apply: (v) => { this.track.gateLength = v; },
-    }));
+    // Group: voice & groove (gate, scale, swing, probability).
+    header.appendChild(this.group(
+      this.buildPercentKnob('Gate', {
+        value: this.track.gateLength, min: GATE_MIN, max: GATE_MAX, default: GATE_DEFAULT,
+        apply: (v) => { this.track.gateLength = v; },
+      }),
+      this.buildScaleControl(),
+      this.buildPercentKnob('Swing', {
+        value: this.track.swing, min: 0, max: 1, default: 0,
+        apply: (v) => { this.track.swing = v; },
+      }),
+      this.buildPercentKnob('Prob', {
+        value: this.track.probability, min: 0, max: 1, default: 1,
+        apply: (v) => { this.track.probability = v; },
+      }),
+    ));
 
-    // Scale selector (root + type) — drives Randomize only
-    header.appendChild(this.buildScaleControl());
-
-    // Swing (delays off-beat steps) and Probability (chance each PLAY step fires)
-    header.appendChild(this.buildPercentKnob('Swing', {
-      value: this.track.swing, min: 0, max: 1, default: 0,
-      apply: (v) => { this.track.swing = v; },
-    }));
-    header.appendChild(this.buildPercentKnob('Prob', {
-      value: this.track.probability, min: 0, max: 1, default: 1,
-      apply: (v) => { this.track.probability = v; },
-    }));
-
-    // Randomize button
-    const randBtn = document.createElement('button');
-    randBtn.className = 'btn-randomize';
-    randBtn.textContent = 'RANDOMIZE';
-    randBtn.title = 'Randomize notes (scale-quantized) and PLAY/MUTE pattern';
-    randBtn.style.touchAction = 'none';
-    randBtn.addEventListener('pointerdown', () => {
-      randomizeTrack(this.track);
-      this.renderSteps();
-      this.onChange();
-    });
-    header.appendChild(randBtn);
-
-    // Manual STEP button — advances this track one step while stopped.
-    const stepBtn = document.createElement('button');
-    stepBtn.className = 'btn-step';
-    stepBtn.textContent = 'STEP ▸';
-    stepBtn.title = 'Advance this track one step (when stopped)';
-    stepBtn.style.touchAction = 'none';
-    stepBtn.addEventListener('pointerdown', onStep);
-    header.appendChild(stepBtn);
-
-    // Trailing actions (duplicate + remove), pushed to the far right.
-    const actions = document.createElement('div');
-    actions.className = 'track-actions';
-
+    // Group (right-aligned): duplicate + remove.
     const dupBtn = document.createElement('button');
     dupBtn.className = 'btn-duplicate-track';
     dupBtn.title = 'Duplicate this track (copy appears just below)';
     dupBtn.textContent = 'DUPLICATE';
     dupBtn.style.touchAction = 'none';
     dupBtn.addEventListener('pointerdown', onDuplicate);
-    actions.appendChild(dupBtn);
 
     const removeBtn = document.createElement('button');
     removeBtn.className = 'btn-remove-track';
@@ -374,19 +344,90 @@ export class TrackPanel {
     removeBtn.textContent = '✕';
     removeBtn.style.touchAction = 'none';
     removeBtn.addEventListener('pointerdown', onRemove);
-    actions.appendChild(removeBtn);
 
+    const actions = this.group(dupBtn, removeBtn);
+    actions.classList.add('track-actions');
     header.appendChild(actions);
 
     panel.appendChild(header);
 
-    // ── Steps ───────────────────────────────────────────────────────────
-    this.stepsContainer = document.createElement('div');
-    this.stepsContainer.className = 'steps-container';
-    panel.appendChild(this.stepsContainer);
+    // ── Steps: rows on the left, action buttons on the right ───────────────
+    const stepsArea = document.createElement('div');
+    stepsArea.className = 'steps-area';
+    this.stepsRows = document.createElement('div');
+    this.stepsRows.className = 'steps-rows';
+    stepsArea.appendChild(this.stepsRows);
+    stepsArea.appendChild(this.buildStepActions(onStep));
+    panel.appendChild(stepsArea);
     this.renderSteps();
 
     return panel;
+  }
+
+  // Wrap related header controls in a visually separated group.
+  private group(...els: HTMLElement[]): HTMLElement {
+    const g = document.createElement('div');
+    g.className = 'hdr-group';
+    for (const el of els) g.appendChild(el);
+    return g;
+  }
+
+  // Action button column to the right of the steps: Randomize, Undo, Step.
+  private buildStepActions(onStep: () => void): HTMLElement {
+    const col = document.createElement('div');
+    col.className = 'step-actions';
+
+    const randBtn = document.createElement('button');
+    randBtn.className = 'btn-randomize';
+    randBtn.textContent = 'RANDOMIZE';
+    randBtn.title = 'Randomize notes (scale-quantized) and PLAY/MUTE pattern';
+    randBtn.style.touchAction = 'none';
+    randBtn.addEventListener('pointerdown', () => {
+      this.captureUndo();
+      randomizeTrack(this.track);
+      this.renderSteps();
+      this.onChange();
+    });
+    col.appendChild(randBtn);
+
+    this.undoBtn = document.createElement('button');
+    this.undoBtn.className = 'btn-undo';
+    this.undoBtn.textContent = 'UNDO';
+    this.undoBtn.title = 'Undo / redo the last Randomize';
+    this.undoBtn.style.touchAction = 'none';
+    this.undoBtn.addEventListener('pointerdown', () => this.doUndo());
+    col.appendChild(this.undoBtn);
+    this.refreshUndoBtn();
+
+    const stepBtn = document.createElement('button');
+    stepBtn.className = 'btn-step';
+    stepBtn.textContent = 'STEP ▸';
+    stepBtn.title = 'Advance this track one step (when stopped)';
+    stepBtn.style.touchAction = 'none';
+    stepBtn.addEventListener('pointerdown', onStep);
+    col.appendChild(stepBtn);
+
+    return col;
+  }
+
+  // Snapshot step data before a destructive op (Randomize) for undo/redo.
+  private captureUndo(): void {
+    this.undoSnapshot = this.track.steps.map(s => ({ note: s.note, mode: s.mode }));
+    this.refreshUndoBtn();
+  }
+
+  // Swap current step data with the snapshot — acts as undo, then redo.
+  private doUndo(): void {
+    if (!this.undoSnapshot) return;
+    const current = this.track.steps;
+    this.track.steps = this.undoSnapshot;
+    this.undoSnapshot = current;
+    this.renderSteps();
+    this.onChange();
+  }
+
+  private refreshUndoBtn(): void {
+    this.undoBtn?.classList.toggle('disabled', !this.undoSnapshot);
   }
 
   // A compact labelled knob shown as a percentage (gate, swing, probability).

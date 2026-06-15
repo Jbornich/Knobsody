@@ -121,11 +121,13 @@ for live standalone use with hardware synthesizers. Desktop only, Chrome/Edge
 - Per step, vertically: LED (green when active, red on a MUTE step), knob
   (dark with light pointer line), note name, 3-position switch (traffic light:
   red = RESET top, yellow = MUTE middle, green = PLAY bottom), step number.
-- Panel header: track name, per-track Play/Stop + Mute toggles, MIDI
-  port/channel selectors, length selector (8/16/32 buttons), per-track
-  gate-length knob, scale selector (root + type), swing + probability knobs, a
-  Randomize button, a manual STEP button, and (right-aligned) Duplicate +
-  Remove. Duplicate inserts a copy directly below the track.
+- Panel header: controls are arranged in visually separated groups — track
+  name + Play/Stop + Mute, then MIDI port/channel, then length (8/16/32), then
+  voice & groove (gate, scale root+type, swing, probability), and right-aligned
+  Duplicate + Remove. Duplicate inserts a copy directly below the track.
+- To the right of the step rows is an action column: Randomize, Undo, and a
+  manual STEP button. Undo/redo restores the step data from before the last
+  Randomize (one level; cleared on a length change).
 - Per-track Swing delays the off-beat (odd) steps for a shuffle feel without
   drifting the grid; per-track Probability is the chance each PLAY step actually
   fires (rolled per trigger, so the pattern varies between loops — the step
