@@ -33,7 +33,9 @@ interface TrackCursor {
 export class Scheduler {
   private audioCtx: AudioContext | null = null;
   private timerId: ReturnType<typeof setTimeout> | null = null;
-  private running = false;
+  // The clock (tick loop + AudioContext + MIDI clock out) runs whenever at least
+  // one track is playing — started either globally (RUN) or per track.
+  private clockRunning = false;
   private _bpm = 120;
 
   // Smoothed offset (ms) from AudioContext time to the performance.now() timebase.
@@ -65,7 +67,8 @@ export class Scheduler {
 
   get bpm(): number { return this._bpm; }
   set bpm(v: number) { this._bpm = Math.max(40, Math.min(240, v)); }
-  get isRunning(): boolean { return this.running; }
+  // True while the clock is running (i.e. at least one track is playing).
+  get isRunning(): boolean { return this.clockRunning; }
 
   // Eagerly create the AudioContext so its (one-time) audio-device init cost is
   // paid at app load, not on the first RUN press. The context starts 'suspended'
@@ -88,34 +91,60 @@ export class Scheduler {
     return this.displaySteps.get(trackId) ?? -1;
   }
 
+  // ── Transport ──────────────────────────────────────────────────────────
+
+  // Global RUN — play every track.
   async start(): Promise<void> {
-    if (!this.audioCtx) {
-      this.audioCtx = new AudioContext();
+    for (const t of this.getTracks()) t.enabled = true;
+    await this.ensureClock();
+  }
+
+  // Global STOP — stop every track and the clock.
+  stop(): void {
+    for (const t of this.getTracks()) {
+      t.enabled = false;
+      this.silence(t);
     }
-    if (this.audioCtx.state === 'suspended') {
-      await this.audioCtx.resume();
-    }
+    this.stopClock();
+  }
+
+  // Per-track PLAY — start just this track, starting the clock if needed. Works
+  // whether or not the global transport (other tracks) is already running.
+  async playTrack(track: TrackState): Promise<void> {
+    track.enabled = true;
+    await this.ensureClock();
+  }
+
+  // Per-track STOP — stop just this track; stops the clock if it was the last.
+  stopTrack(track: TrackState): void {
+    track.enabled = false;
+    this.silence(track);
+    this.cursors.delete(track.id);
+    this.displaySteps.set(track.id, -1);
+    if (!this.getTracks().some(t => t.enabled)) this.stopClock();
+  }
+
+  // Start the clock (tick loop + AudioContext + MIDI clock out) if it is not
+  // already running. Idempotent; called whenever a track begins playing.
+  private async ensureClock(): Promise<void> {
+    if (this.clockRunning) return;
+
+    if (!this.audioCtx) this.audioCtx = new AudioContext();
+    if (this.audioCtx.state === 'suspended') await this.audioCtx.resume();
 
     const now = this.audioCtx.currentTime;
-    const tracks = this.getTracks();
-
-    // Reseed cursors for exactly the current track set.
+    // Cursors are seeded lazily per enabled track inside tick(); just reset the
+    // shared clock state here.
     this.cursors.clear();
     this.displaySteps.clear();
-    for (const t of tracks) {
-      this.cursors.set(t.id, { nextStep: 0, nextTime: now });
-      this.displaySteps.set(t.id, -1);
-    }
     this.displayQueue = [];
     this.nextClockTime = now;
     this.manualPos.clear();
+    this.offsetInit = false; // re-seed the smoothed time offset
 
-    // Re-seed the smoothed offset on each run
-    this.offsetInit = false;
+    this.clockRunning = true;
 
-    this.running = true;
-
-    // MIDI Start (0xFA) — System Real-Time, sent immediately to every clock port.
+    // MIDI Start (0xFA) — System Real-Time, to every clock port.
     for (const port of this.getClockPorts()) {
       try { port.send([START]); } catch { /* port gone */ }
     }
@@ -123,16 +152,13 @@ export class Scheduler {
     this.tick();
   }
 
-  stop(): void {
-    this.running = false;
+  // Stop the clock entirely (no tracks playing).
+  private stopClock(): void {
+    if (!this.clockRunning) return;
+    this.clockRunning = false;
     if (this.timerId !== null) {
       clearTimeout(this.timerId);
       this.timerId = null;
-    }
-
-    // CC 123 = All Notes Off on every track's channel — sent immediately.
-    for (const track of this.getTracks()) {
-      this.silence(track);
     }
 
     // MIDI Stop (0xFC) to every clock port.
@@ -155,7 +181,7 @@ export class Scheduler {
   // active while stopped. Respects the effective loop (never lands on a RESET
   // step) and MUTE (advances the position but sends no note). Lights the LED.
   manualStep(track: TrackState): void {
-    if (this.running) return;
+    if (this.clockRunning) return;
     const effLen = effectiveLength(track);
     let pos = (this.manualPos.get(track.id) ?? -1) + 1;
     if (pos >= effLen) pos = 0;
@@ -166,7 +192,7 @@ export class Scheduler {
 
   // Advance every track by one step (the global STEP button).
   manualStepAll(): void {
-    if (this.running) return;
+    if (this.clockRunning) return;
     for (const track of this.getTracks()) this.manualStep(track);
   }
 
@@ -218,7 +244,7 @@ export class Scheduler {
   }
 
   private tick(): void {
-    if (!this.running || !this.audioCtx) return;
+    if (!this.clockRunning || !this.audioCtx) return;
 
     const tnow = performance.now();
     const stepDuration = 60 / this._bpm / 4; // one 16th note in seconds

@@ -45,6 +45,18 @@ let tracksContainer: HTMLElement;
 let clockOutContainer: HTMLElement;
 let bpmSlider: HTMLInputElement;
 let bpmDisplay: HTMLButtonElement;
+let runBtn: HTMLButtonElement;
+
+// Sync all transport-dependent UI to the scheduler's running state: the global
+// RUN/STOP button, the body class that disables manual STEP, and every track's
+// Play/Stop + Mute buttons.
+function refreshUI(): void {
+  const running = scheduler.isRunning;
+  runBtn.textContent = running ? 'STOP' : 'RUN';
+  runBtn.classList.toggle('running', running);
+  document.body.classList.toggle('seq-running', running);
+  panels.forEach(p => p.refresh());
+}
 
 // ── Persistence ────────────────────────────────────────────────────────────
 
@@ -71,6 +83,11 @@ function mountTrack(track: TrackState, index: number = tracks.length): void {
     () => scheduler.manualStep(track),
     () => duplicateTrack(track),
     (note) => scheduler.auditionNote(track, note),
+    async () => {
+      if (track.enabled) scheduler.stopTrack(track);
+      else await scheduler.playTrack(track);
+      refreshUI();
+    },
   );
   tracks.splice(index, 0, track);
   panels.splice(index, 0, panel);
@@ -171,23 +188,14 @@ function buildTransport(): HTMLElement {
   };
   bar.appendChild(divider());
 
-  // RUN / STOP
-  const runBtn = document.createElement('button');
+  // RUN / STOP — global transport (plays/stops all tracks).
+  runBtn = document.createElement('button');
   runBtn.className = 'btn-run';
   runBtn.textContent = 'RUN';
   runBtn.addEventListener('pointerdown', async () => {
-    if (scheduler.isRunning) {
-      scheduler.stop();
-      runBtn.textContent = 'RUN';
-      runBtn.classList.remove('running');
-      document.body.classList.remove('seq-running');
-    } else {
-      await scheduler.start();
-      runBtn.textContent = 'STOP';
-      runBtn.classList.add('running');
-      // Disables the manual STEP buttons (they only act while stopped).
-      document.body.classList.add('seq-running');
-    }
+    if (scheduler.isRunning) scheduler.stop();
+    else await scheduler.start();
+    refreshUI();
   });
   bar.appendChild(runBtn);
 

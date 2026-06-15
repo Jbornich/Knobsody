@@ -126,8 +126,12 @@ for live standalone use with hardware synthesizers. Desktop only, Chrome/Edge
   gate-length knob, scale selector (root + type), a Randomize button, a manual
   STEP button, and (right-aligned) Duplicate + Remove. Duplicate inserts a copy
   directly below the track.
-- Per-track Play/Stop freezes/resumes just that track (restarts at step 1 on
-  resume); per-track Mute keeps it running (LEDs chase) but sends no notes.
+- Per-track Play/Stop starts/stops just that track, independently of the global
+  transport — pressing a track's PLAY starts it even when RUN is not engaged.
+  The shared clock runs whenever at least one track is playing; a track restarts
+  at step 1 each time it is started. Per-track Mute keeps a track running (LEDs
+  chase) but sends no notes. The button shows the action (green PLAY when
+  stopped, red STOP when playing), like the global RUN/STOP button.
 - Global transport bar: RUN/STOP, a global STEP button, tempo knob + BPM
   readout (the readout doubles as a tap-tempo button), clock-out port
   selection, "+ track" button.

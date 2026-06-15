@@ -19,6 +19,10 @@ export class TrackPanel {
   private readonly midi: MidiManager;
   private readonly onChange: () => void;
   private readonly onAudition: (note: number) => void;
+  private readonly onTogglePlay: () => void;
+
+  // Re-renders the per-track Play/Stop + Mute buttons from current state.
+  private renderControls: () => void = () => {};
 
   private stepsContainer!: HTMLElement;
   private portSelect!: HTMLSelectElement;
@@ -42,13 +46,18 @@ export class TrackPanel {
     onStep: () => void,
     onDuplicate: () => void,
     onAudition: (note: number) => void,
+    onTogglePlay: () => void,
   ) {
     this.track = track;
     this.midi = midi;
     this.onChange = onChange;
     this.onAudition = onAudition;
+    this.onTogglePlay = onTogglePlay;
     this.el = this.build(onRemove, onStep, onDuplicate);
   }
+
+  // Re-render the play/mute buttons (called by the app after a transport change).
+  refresh(): void { this.renderControls(); }
 
   // ── Public API used by the app shell ─────────────────────────────────────
 
@@ -228,24 +237,19 @@ export class TrackPanel {
     nameEl.textContent = this.track.name;
     header.appendChild(nameEl);
 
-    // Per-track Play/Stop — freezes/resumes just this track (restarts at step 1).
+    // Per-track Play/Stop — starts/stops just this track (independently of the
+    // global transport). Label/colour show the ACTION, like the global RUN/STOP
+    // button: a playing track shows red STOP, a stopped track shows green PLAY.
     const playBtn = document.createElement('button');
     playBtn.className = 'btn-track-toggle';
     playBtn.style.touchAction = 'none';
     const renderPlay = () => {
-      // Label/colour show the ACTION, like the global RUN/STOP button: a playing
-      // track shows red STOP (tap to stop), a stopped track shows green PLAY.
       playBtn.textContent = this.track.enabled ? 'STOP' : 'PLAY';
       playBtn.classList.toggle('off', this.track.enabled);
       playBtn.classList.toggle('on-play', !this.track.enabled);
     };
-    renderPlay();
     playBtn.title = 'Play / stop this track';
-    playBtn.addEventListener('pointerdown', () => {
-      this.track.enabled = !this.track.enabled;
-      renderPlay();
-      this.onChange();
-    });
+    playBtn.addEventListener('pointerdown', () => this.onTogglePlay());
     header.appendChild(playBtn);
 
     // Per-track Mute — keeps running (LEDs chase) but sends no notes.
@@ -255,13 +259,15 @@ export class TrackPanel {
     muteBtn.style.touchAction = 'none';
     muteBtn.title = 'Mute this track (keeps timing, sends no notes)';
     const renderMute = () => muteBtn.classList.toggle('on-mute', this.track.muted);
-    renderMute();
     muteBtn.addEventListener('pointerdown', () => {
       this.track.muted = !this.track.muted;
       renderMute();
       this.onChange();
     });
     header.appendChild(muteBtn);
+
+    this.renderControls = () => { renderPlay(); renderMute(); };
+    this.renderControls();
 
     // MIDI port selector
     header.appendChild(this.label('Port:'));

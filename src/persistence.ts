@@ -102,7 +102,7 @@ export function sanitize(data: unknown): SerializedState | null {
       scaleRoot: clampInt(t.scaleRoot, 0, 11, 0),
       scaleType: validScales.includes(t.scaleType as ScaleType) ? (t.scaleType as ScaleType) : 'chromatic',
       muted: t.muted === true,
-      enabled: t.enabled !== false, // default true for older saves
+      enabled: false, // "playing" never persists — tracks load stopped
     });
   }
 

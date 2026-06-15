@@ -18,7 +18,7 @@ export interface TrackState {
   scaleRoot: number;     // pitch class 0–11 (0 = C)
   scaleType: ScaleType;
   muted: boolean;        // advances + chases LEDs but sends no notes
-  enabled: boolean;      // per-track Play/Stop; false = frozen, sends nothing
+  enabled: boolean;      // per-track Play/Stop = currently playing (transient)
   // Transient: the saved port name to reselect once MIDI ports enumerate.
   // Not part of the live MIDI binding (that is midiOutput).
   desiredPortName?: string | null;
@@ -56,7 +56,7 @@ export function createTrack(n: number): TrackState {
     scaleRoot: 0,
     scaleType: 'chromatic',
     muted: false,
-    enabled: true,
+    enabled: false, // "playing" is a transient transport state; tracks start stopped
   };
 }
 
