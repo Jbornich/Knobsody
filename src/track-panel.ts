@@ -62,7 +62,7 @@ export class TrackPanel {
     if (currentStep >= 0 && currentStep < this.ledEls.length) {
       const led = this.ledEls[currentStep];
       led.classList.add('active');
-      // Green for a playing step, yellow for a muted step.
+      // Green for a playing step, red for a muted step.
       led.classList.toggle('muted', this.track.steps[currentStep].mode === 'mute');
     }
     this.lastLitStep = currentStep;

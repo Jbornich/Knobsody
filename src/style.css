@@ -580,7 +580,8 @@ html.fs-scaled #app {
   flex-shrink: 0;
 }
 
-/* Active step: green for PLAY, yellow for a MUTE step. */
+/* Active step: green for PLAY, red for a MUTE step (red/green reads far better
+   than yellow/green when the running light is moving fast). */
 .step-led.active {
   background: #40D060;
   border-color: #70E890;
@@ -588,9 +589,9 @@ html.fs-scaled #app {
 }
 
 .step-led.active.muted {
-  background: #E0B020;
-  border-color: #F0C840;
-  box-shadow: 0 0 6px #E0B020, 0 0 12px #E0B02080;
+  background: #FF4040;
+  border-color: #FF7070;
+  box-shadow: 0 0 6px #FF4040, 0 0 12px #FF404080;
 }
 
 /* ── Knob SVG ──────────────────────────────────────────────────────────── */
