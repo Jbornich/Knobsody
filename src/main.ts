@@ -44,7 +44,7 @@ const scheduler = new Scheduler(
 let tracksContainer: HTMLElement;
 let clockOutContainer: HTMLElement;
 let bpmSlider: HTMLInputElement;
-let bpmDisplay: HTMLSpanElement;
+let bpmDisplay: HTMLButtonElement;
 
 // ── Persistence ────────────────────────────────────────────────────────────
 
@@ -61,22 +61,45 @@ function requestSave(): void {
 
 // ── Track add / remove ─────────────────────────────────────────────────────
 
-// Attach an existing TrackState to the DOM + state arrays.
-function mountTrack(track: TrackState): void {
+// Attach an existing TrackState to the DOM + state arrays at the given index
+// (default: append to the end).
+function mountTrack(track: TrackState, index: number = tracks.length): void {
   const panel = new TrackPanel(
     track, midi,
     () => removeTrack(track),
     requestSave,
     () => scheduler.manualStep(track),
+    () => duplicateTrack(track),
   );
-  tracks.push(track);
-  panels.push(panel);
-  tracksContainer.appendChild(panel.el);
+  tracks.splice(index, 0, track);
+  panels.splice(index, 0, panel);
+  const after = panels[index + 1];
+  tracksContainer.insertBefore(panel.el, after ? after.el : null);
   panel.populatePorts();
 }
 
 function addTrack(): void {
   mountTrack(createTrack(tracks.length + 1));
+  requestSave();
+}
+
+// Duplicate a track; the copy is inserted directly below the source.
+function duplicateTrack(source: TrackState): void {
+  const idx = tracks.indexOf(source);
+  if (idx < 0) return;
+  const clone = createTrack(1); // fresh unique id; fields overwritten below
+  clone.name = source.name + ' copy';
+  clone.steps = source.steps.map(s => ({ note: s.note, mode: s.mode }));
+  clone.length = source.length;
+  clone.midiChannel = source.midiChannel;
+  clone.gateLength = source.gateLength;
+  clone.scaleRoot = source.scaleRoot;
+  clone.scaleType = source.scaleType;
+  clone.muted = source.muted;
+  clone.enabled = source.enabled;
+  clone.midiOutput = source.midiOutput;
+  clone.desiredPortName = source.desiredPortName ?? (source.midiOutput?.name ?? null);
+  mountTrack(clone, idx + 1);
   requestSave();
 }
 
@@ -118,6 +141,8 @@ function applyState(state: SerializedState): void {
     track.gateLength = st.gateLength;
     track.scaleRoot = st.scaleRoot;
     track.scaleType = st.scaleType;
+    track.muted = st.muted;
+    track.enabled = st.enabled;
     track.desiredPortName = st.portName; // resolved to a live port on populatePorts
     mountTrack(track);
   }
@@ -183,14 +208,34 @@ function buildTransport(): HTMLElement {
   bpmSlider.value = '120';
   bpmSlider.style.touchAction = 'none';
 
-  bpmDisplay = document.createElement('span');
+  bpmDisplay = document.createElement('button');
   bpmDisplay.className = 'bpm-value';
   bpmDisplay.textContent = '120';
+  bpmDisplay.title = 'Tap to set tempo';
+  bpmDisplay.style.touchAction = 'none';
 
   bpmSlider.addEventListener('input', () => {
     const v = parseInt(bpmSlider.value, 10);
     scheduler.bpm = v;
     bpmDisplay.textContent = String(v);
+    requestSave();
+  });
+
+  // Tap tempo: derive BPM from the average interval of recent taps. A gap of
+  // more than 2 s starts a fresh measurement.
+  let tapTimes: number[] = [];
+  bpmDisplay.addEventListener('pointerdown', () => {
+    const now = performance.now();
+    if (tapTimes.length > 0 && now - tapTimes[tapTimes.length - 1] > 2000) tapTimes = [];
+    tapTimes.push(now);
+    if (tapTimes.length > 5) tapTimes.shift();
+    if (tapTimes.length < 2) return;
+    let total = 0;
+    for (let i = 1; i < tapTimes.length; i++) total += tapTimes[i] - tapTimes[i - 1];
+    const bpm = Math.round(60000 / (total / (tapTimes.length - 1)));
+    scheduler.bpm = bpm; // setter clamps to 40–240
+    bpmSlider.value = String(scheduler.bpm);
+    bpmDisplay.textContent = String(scheduler.bpm);
     requestSave();
   });
 

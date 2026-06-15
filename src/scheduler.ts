@@ -174,7 +174,7 @@ export class Scheduler {
   // independent of the lookahead timeline so it works while stopped.
   private playStepNow(track: TrackState, stepIndex: number): void {
     const step = track.steps[stepIndex];
-    if (!track.midiOutput || step.mode !== 'play') return;
+    if (!track.midiOutput || track.muted || step.mode !== 'play') return;
     const ch = (track.midiChannel - 1) & 0xF;
     const stepDurationMs = (60 / this._bpm / 4) * 1000;
     const now = performance.now();
@@ -217,9 +217,19 @@ export class Scheduler {
 
     // ── Step events, per track ───────────────────────────────────────────
     for (const track of tracks) {
+      // Per-track Play/Stop: a disabled track is frozen. Drop its cursor so
+      // that re-enabling reseeds it and it restarts from step 1.
+      if (!track.enabled) {
+        if (this.cursors.has(track.id)) {
+          this.cursors.delete(track.id);
+          this.displaySteps.set(track.id, -1);
+        }
+        continue;
+      }
+
       let cur = this.cursors.get(track.id);
       if (!cur) {
-        // Track added after start — begin it at the current time.
+        // New, re-enabled, or late-added track — begin at the current time.
         cur = { nextStep: 0, nextTime: this.audioCtx.currentTime };
         this.cursors.set(track.id, cur);
         this.displaySteps.set(track.id, -1);
@@ -267,7 +277,7 @@ export class Scheduler {
     this.displayQueue.push({ trackId: track.id, stepIndex, audioTime });
 
     const step = track.steps[stepIndex];
-    if (!track.midiOutput || step.mode !== 'play') return;
+    if (!track.midiOutput || track.muted || step.mode !== 'play') return;
 
     const ch = (track.midiChannel - 1) & 0xF;
     const onTime = this.toMidiStamp(audioTime);

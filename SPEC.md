@@ -56,7 +56,8 @@ for live standalone use with hardware synthesizers. Desktop only, Chrome/Edge
        step 1 WITHOUT playing the step. This shortens the effective loop
        and is the polyrhythm mechanism (e.g. track 1 loops 16, track 2 has
        RESET on step 13 → 12-step loop against 16).
-  3. **Step LED** — lit while the playhead is on the step (running-light chase).
+  3. **Step LED** — lit while the playhead is on the step (running-light chase):
+     green for a PLAY step, yellow for a MUTE step.
 - The RESET step itself and all steps after it (outside the effective loop)
   render dimmed.
 
@@ -113,14 +114,19 @@ for live standalone use with hardware synthesizers. Desktop only, Chrome/Edge
 ## Visual design (hardware-panel aesthetic)
 - Dark faceplate panels (#2C2C2A), one panel per track, rounded corners,
   generous spacing between panels.
-- Per step, vertically: LED (amber when active), knob (dark with light pointer
-  line), note name, 3-position switch (traffic light: red = RESET top,
-  yellow = MUTE middle, green = PLAY bottom), step number.
-- Panel header: track name, MIDI port/channel selectors, length selector
-  (8/16/32 buttons), per-track gate-length knob, scale selector
-  (root + type), a Randomize button, and a manual STEP button.
+- Per step, vertically: LED (green when active, yellow on a MUTE step), knob
+  (dark with light pointer line), note name, 3-position switch (traffic light:
+  red = RESET top, yellow = MUTE middle, green = PLAY bottom), step number.
+- Panel header: track name, per-track Play/Stop + Mute toggles, MIDI
+  port/channel selectors, length selector (8/16/32 buttons), per-track
+  gate-length knob, scale selector (root + type), a Randomize button, a manual
+  STEP button, and (right-aligned) Duplicate + Remove. Duplicate inserts a copy
+  directly below the track.
+- Per-track Play/Stop freezes/resumes just that track (restarts at step 1 on
+  resume); per-track Mute keeps it running (LEDs chase) but sends no notes.
 - Global transport bar: RUN/STOP, a global STEP button, tempo knob + BPM
-  readout, clock-out port selection, "+ track" button.
+  readout (the readout doubles as a tap-tempo button), clock-out port
+  selection, "+ track" button.
 - Manual STEP (per-track and global) advances the sequence one step while
   stopped — playing that step's note (MUTE advances silently, RESET steps are
   skipped) and lighting its LED. Disabled while running.

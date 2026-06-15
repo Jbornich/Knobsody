@@ -39,11 +39,12 @@ export class TrackPanel {
     onRemove: () => void,
     onChange: () => void,
     onStep: () => void,
+    onDuplicate: () => void,
   ) {
     this.track = track;
     this.midi = midi;
     this.onChange = onChange;
-    this.el = this.build(onRemove, onStep);
+    this.el = this.build(onRemove, onStep, onDuplicate);
   }
 
   // ── Public API used by the app shell ─────────────────────────────────────
@@ -53,10 +54,13 @@ export class TrackPanel {
   updateLeds(currentStep: number): void {
     if (currentStep === this.lastLitStep) return;
     if (this.lastLitStep >= 0 && this.lastLitStep < this.ledEls.length) {
-      this.ledEls[this.lastLitStep].classList.remove('active');
+      this.ledEls[this.lastLitStep].classList.remove('active', 'muted');
     }
     if (currentStep >= 0 && currentStep < this.ledEls.length) {
-      this.ledEls[currentStep].classList.add('active');
+      const led = this.ledEls[currentStep];
+      led.classList.add('active');
+      // Green for a playing step, yellow for a muted step.
+      led.classList.toggle('muted', this.track.steps[currentStep].mode === 'mute');
     }
     this.lastLitStep = currentStep;
   }
@@ -190,7 +194,7 @@ export class TrackPanel {
     }
   }
 
-  private build(onRemove: () => void, onStep: () => void): HTMLElement {
+  private build(onRemove: () => void, onStep: () => void, onDuplicate: () => void): HTMLElement {
     const panel = document.createElement('div');
     panel.className = 'track-panel';
 
@@ -202,6 +206,39 @@ export class TrackPanel {
     nameEl.className = 'track-name';
     nameEl.textContent = this.track.name;
     header.appendChild(nameEl);
+
+    // Per-track Play/Stop — freezes/resumes just this track (restarts at step 1).
+    const playBtn = document.createElement('button');
+    playBtn.className = 'btn-track-toggle';
+    playBtn.style.touchAction = 'none';
+    const renderPlay = () => {
+      playBtn.textContent = this.track.enabled ? 'PLAY' : 'STOP';
+      playBtn.classList.toggle('on-play', this.track.enabled);
+      playBtn.classList.toggle('off', !this.track.enabled);
+    };
+    renderPlay();
+    playBtn.title = 'Play / stop this track';
+    playBtn.addEventListener('pointerdown', () => {
+      this.track.enabled = !this.track.enabled;
+      renderPlay();
+      this.onChange();
+    });
+    header.appendChild(playBtn);
+
+    // Per-track Mute — keeps running (LEDs chase) but sends no notes.
+    const muteBtn = document.createElement('button');
+    muteBtn.className = 'btn-track-toggle';
+    muteBtn.textContent = 'MUTE';
+    muteBtn.style.touchAction = 'none';
+    muteBtn.title = 'Mute this track (keeps timing, sends no notes)';
+    const renderMute = () => muteBtn.classList.toggle('on-mute', this.track.muted);
+    renderMute();
+    muteBtn.addEventListener('pointerdown', () => {
+      this.track.muted = !this.track.muted;
+      renderMute();
+      this.onChange();
+    });
+    header.appendChild(muteBtn);
 
     // MIDI port selector
     header.appendChild(this.label('Port:'));
@@ -277,14 +314,27 @@ export class TrackPanel {
     stepBtn.addEventListener('pointerdown', onStep);
     header.appendChild(stepBtn);
 
-    // Remove-track button (pushed to the far right)
+    // Trailing actions (duplicate + remove), pushed to the far right.
+    const actions = document.createElement('div');
+    actions.className = 'track-actions';
+
+    const dupBtn = document.createElement('button');
+    dupBtn.className = 'btn-duplicate-track';
+    dupBtn.title = 'Duplicate this track (copy appears just below)';
+    dupBtn.textContent = 'DUPLICATE';
+    dupBtn.style.touchAction = 'none';
+    dupBtn.addEventListener('pointerdown', onDuplicate);
+    actions.appendChild(dupBtn);
+
     const removeBtn = document.createElement('button');
     removeBtn.className = 'btn-remove-track';
     removeBtn.title = 'Remove this track';
     removeBtn.textContent = '✕';
     removeBtn.style.touchAction = 'none';
     removeBtn.addEventListener('pointerdown', onRemove);
-    header.appendChild(removeBtn);
+    actions.appendChild(removeBtn);
+
+    header.appendChild(actions);
 
     panel.appendChild(header);
 

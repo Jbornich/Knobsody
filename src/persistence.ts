@@ -15,6 +15,8 @@ export interface SerializedTrack {
   gateLength: number;
   scaleRoot: number;
   scaleType: ScaleType;
+  muted: boolean;
+  enabled: boolean;
 }
 
 export interface SerializedState {
@@ -42,6 +44,8 @@ export function serialize(
       gateLength: t.gateLength,
       scaleRoot: t.scaleRoot,
       scaleType: t.scaleType,
+      muted: t.muted,
+      enabled: t.enabled,
     })),
   };
 }
@@ -97,6 +101,8 @@ export function sanitize(data: unknown): SerializedState | null {
       gateLength: clampNum(t.gateLength, 0.1, 0.95, 0.5),
       scaleRoot: clampInt(t.scaleRoot, 0, 11, 0),
       scaleType: validScales.includes(t.scaleType as ScaleType) ? (t.scaleType as ScaleType) : 'chromatic',
+      muted: t.muted === true,
+      enabled: t.enabled !== false, // default true for older saves
     });
   }
 

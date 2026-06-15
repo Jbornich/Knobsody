@@ -159,12 +159,25 @@ html.fs-scaled #app {
   border: none;
 }
 
+/* BPM readout doubles as a tap-tempo button — 20% larger than before. */
 .bpm-value {
-  font-size: 20px;
+  font-size: 24px;
   font-weight: 700;
   color: #E8E8D0;
-  min-width: 38px;
-  text-align: right;
+  min-width: 46px;
+  text-align: center;
+  font-family: inherit;
+  background: #1A1A18;
+  border: 1px solid #3A3A38;
+  border-radius: 6px;
+  padding: 2px 8px;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.bpm-value:active {
+  background: #3A2A08;
+  color: #E8A020;
 }
 
 /* Clock-out port selection */
@@ -365,9 +378,66 @@ html.fs-scaled #app {
   color: #E8A020;
 }
 
-/* Remove-track button — pushed to the far right of the header. */
-.btn-remove-track {
+/* Per-track Play/Stop + Mute toggles (next to the track name). */
+.btn-track-toggle {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 4px;
+  border: 1px solid #4A4A48;
+  background: #1A1A18;
+  color: #888870;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.btn-track-toggle.on-play {
+  background: #1A2A1A;
+  color: #80D880;
+  border-color: #4A6A4A;
+}
+
+.btn-track-toggle.off {
+  background: #2A1A1A;
+  color: #C87070;
+  border-color: #5A2A2A;
+}
+
+.btn-track-toggle.on-mute {
+  background: #3A2A08;
+  color: #E0B020;
+  border-color: #6A5A20;
+}
+
+/* Trailing header actions (duplicate + remove), pushed to the far right. */
+.track-actions {
   margin-left: auto;
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.btn-duplicate-track {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 4px;
+  border: 1px solid #4A4A48;
+  background: #1A1A18;
+  color: #A8A898;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.btn-duplicate-track:active { background: #2A2A28; }
+
+.btn-remove-track {
   width: 32px;
   height: 32px;
   border-radius: 4px;
@@ -379,7 +449,6 @@ html.fs-scaled #app {
   font-weight: 700;
   cursor: pointer;
   touch-action: none;
-  flex-shrink: 0;
 }
 
 .btn-remove-track:active { background: #1A1010; }
@@ -511,10 +580,17 @@ html.fs-scaled #app {
   flex-shrink: 0;
 }
 
+/* Active step: green for PLAY, yellow for a MUTE step. */
 .step-led.active {
-  background: #FFB000;
-  border-color: #FFC840;
-  box-shadow: 0 0 6px #FFB000, 0 0 12px #FFB00080;
+  background: #40D060;
+  border-color: #70E890;
+  box-shadow: 0 0 6px #40D060, 0 0 12px #40D06080;
+}
+
+.step-led.active.muted {
+  background: #E0B020;
+  border-color: #F0C840;
+  box-shadow: 0 0 6px #E0B020, 0 0 12px #E0B02080;
 }
 
 /* ── Knob SVG ──────────────────────────────────────────────────────────── */
