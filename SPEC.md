@@ -39,7 +39,10 @@ for live standalone use with hardware synthesizers. Desktop only, Chrome/Edge
 - Each step has:
   1. **Rotary knob** — sets MIDI note (pitch). Vertical drag to turn,
      double-click to reset to C3. Range C1–C6, chromatic. Show note name
-     under the knob. Knobs themselves stay chromatic. A per-track scale
+     under the knob. Turning a knob auditions the pitch (note sent on press and
+     on every change, in stop or run mode, ignoring track mute — so steps can be
+     "played"; no-ops with no port) and shows a larger note popup to the LEFT of
+     the knob while adjusting. Knobs themselves stay chromatic. A per-track scale
      (root note + scale type) is part of v1 to drive Randomize (see below)
      and to re-quantize the existing sequence: changing the scale root or
      type immediately snaps every step's note to the nearest note in the
@@ -146,7 +149,8 @@ for live standalone use with hardware synthesizers. Desktop only, Chrome/Edge
   for live use.
 - No hover-dependent UI; every state must be visible without hover.
 - Knob interaction: Pointer Events with `setPointerCapture`, vertical drag
-  (1 px ≈ 0.5 semitone). Track state per `pointerId` so multiple knobs can be
+  (~8 px per semitone — tuned to be easy to land the right note on touch).
+  Track state per `pointerId` so multiple knobs can be
   turned simultaneously (multi-touch). Fine mode: Shift on mouse; on touch,
   resolution increases with horizontal finger distance from the knob.
   Set `touch-action: none` on all knobs/switches.

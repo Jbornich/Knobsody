@@ -18,6 +18,7 @@ export class TrackPanel {
   private readonly track: TrackState;
   private readonly midi: MidiManager;
   private readonly onChange: () => void;
+  private readonly onAudition: (note: number) => void;
 
   private stepsContainer!: HTMLElement;
   private portSelect!: HTMLSelectElement;
@@ -40,10 +41,12 @@ export class TrackPanel {
     onChange: () => void,
     onStep: () => void,
     onDuplicate: () => void,
+    onAudition: (note: number) => void,
   ) {
     this.track = track;
     this.midi = midi;
     this.onChange = onChange;
+    this.onAudition = onAudition;
     this.el = this.build(onRemove, onStep, onDuplicate);
   }
 
@@ -142,19 +145,37 @@ export class TrackPanel {
     this.ledEls.push(led);
     cell.appendChild(led);
 
-    // Knob — chromatic MIDI note, C1–C6, double-tap resets to C3.
+    // Note popup, shown to the LEFT of the knob while it is being adjusted.
+    const popup = document.createElement('div');
+    popup.className = 'note-popup';
+
+    // Knob — chromatic MIDI note, C1–C6, double-tap resets to C3. Turning it
+    // auditions the pitch (so it can be heard / "played") and shows the popup.
     const knob = new Knob({
       min: NOTE_MIN, max: NOTE_MAX, value: this.track.steps[i].note, default: NOTE_DEFAULT,
-      step: 1, pxPerUnit: 2,
+      step: 1, pxPerUnit: 8, // ~8 px per semitone — less twitchy than before
       title: midiToNoteName,
       onChange: (note) => {
         this.track.steps[i].note = note;
         this.noteNameEls[i].textContent = midiToNoteName(note);
+        popup.textContent = midiToNoteName(note);
+        this.onAudition(note);
         this.onChange();
       },
+      onPress: (note) => {
+        popup.textContent = midiToNoteName(note);
+        popup.classList.add('visible');
+        this.onAudition(note);
+      },
+      onRelease: () => popup.classList.remove('visible'),
     });
     this.knobInstances.push(knob);
-    cell.appendChild(knob.svgEl);
+
+    const knobWrap = document.createElement('div');
+    knobWrap.className = 'knob-wrap';
+    knobWrap.appendChild(popup);
+    knobWrap.appendChild(knob.svgEl);
+    cell.appendChild(knobWrap);
 
     // Note name
     const noteName = document.createElement('span');

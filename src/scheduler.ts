@@ -170,6 +170,28 @@ export class Scheduler {
     for (const track of this.getTracks()) this.manualStep(track);
   }
 
+  // Last note auditioned per track, so a new audition can cut the previous one.
+  private auditionNotes = new Map<string, number>();
+
+  // Audibly preview a note on a track's port — used when turning a step knob so
+  // the user can hear (and "play") the pitch. Works in both stop and run mode,
+  // ignores track mute (you want to hear what you dial), and no-ops with no port.
+  auditionNote(track: TrackState, note: number): void {
+    if (!track.midiOutput) return;
+    const ch = (track.midiChannel - 1) & 0xF;
+    const out = track.midiOutput;
+    const now = performance.now();
+    const stepDurationMs = (60 / this._bpm / 4) * 1000;
+    const offDelay = Math.max(120, stepDurationMs * Math.min(track.gateLength, 0.95));
+    const prev = this.auditionNotes.get(track.id);
+    try {
+      if (prev !== undefined) out.send([0x80 | ch, prev, 0], now); // cut previous
+      out.send([0x90 | ch, note, 100], now);
+      out.send([0x80 | ch, note, 0], now + offDelay);
+    } catch { /* port disconnected */ }
+    this.auditionNotes.set(track.id, note);
+  }
+
   // Fire one step's note right now (note-on immediate, note-off after the gate),
   // independent of the lookahead timeline so it works while stopped.
   private playStepNow(track: TrackState, stepIndex: number): void {

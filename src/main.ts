@@ -70,6 +70,7 @@ function mountTrack(track: TrackState, index: number = tracks.length): void {
     requestSave,
     () => scheduler.manualStep(track),
     () => duplicateTrack(track),
+    (note) => scheduler.auditionNote(track, note),
   );
   tracks.splice(index, 0, track);
   panels.splice(index, 0, panel);

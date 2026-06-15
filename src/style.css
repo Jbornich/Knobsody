@@ -602,6 +602,35 @@ html.fs-scaled #app {
   flex-shrink: 0;
 }
 
+/* Wrapper so the note popup can be positioned relative to the knob. */
+.knob-wrap {
+  position: relative;
+  display: flex;
+}
+
+/* Note popup — appears to the LEFT of the knob while it is being turned. */
+.note-popup {
+  position: absolute;
+  right: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-right: 6px;
+  display: none;
+  z-index: 10;
+  padding: 4px 8px;
+  border-radius: 5px;
+  background: #E8A020;
+  color: #1A1A18;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 2px 8px #000A;
+}
+
+.note-popup.visible { display: block; }
+
 /* ── 3-position switch SVG ─────────────────────────────────────────────── */
 
 .switch-svg {

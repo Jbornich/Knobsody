@@ -18,6 +18,8 @@ export interface KnobConfig {
   size?: number;          // rendered diameter in px (default 64)
   title?: (v: number) => string; // tooltip text for the current value
   onChange: (v: number) => void;
+  onPress?: (v: number) => void;  // a drag/tap begins (not a double-tap reset)
+  onRelease?: () => void;         // the last pointer lifts off
 }
 
 export class Knob {
@@ -25,7 +27,7 @@ export class Knob {
   private pointerLine: SVGLineElement;
   private value: number;
   private readonly cfg: Required<Pick<KnobConfig, 'min' | 'max' | 'default' | 'step' | 'pxPerUnit'>>
-    & Pick<KnobConfig, 'title' | 'onChange'>;
+    & Pick<KnobConfig, 'title' | 'onChange' | 'onPress' | 'onRelease'>;
 
   // Per-pointer drag state for multi-touch
   private ptrs = new Map<number, { startY: number; startValue: number }>();
@@ -137,6 +139,7 @@ export class Knob {
       this.lastTapMs = now;
 
       this.ptrs.set(e.pointerId, { startY: e.clientY, startValue: this.value });
+      this.cfg.onPress?.(this.value);
     });
 
     el.addEventListener('pointermove', (e: PointerEvent) => {
@@ -154,7 +157,10 @@ export class Knob {
       }
     });
 
-    const releasePtr = (e: PointerEvent) => { this.ptrs.delete(e.pointerId); };
+    const releasePtr = (e: PointerEvent) => {
+      this.ptrs.delete(e.pointerId);
+      if (this.ptrs.size === 0) this.cfg.onRelease?.();
+    };
     el.addEventListener('pointerup', releasePtr);
     el.addEventListener('pointercancel', releasePtr);
   }
