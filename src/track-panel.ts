@@ -233,9 +233,11 @@ export class TrackPanel {
     playBtn.className = 'btn-track-toggle';
     playBtn.style.touchAction = 'none';
     const renderPlay = () => {
-      playBtn.textContent = this.track.enabled ? 'PLAY' : 'STOP';
-      playBtn.classList.toggle('on-play', this.track.enabled);
-      playBtn.classList.toggle('off', !this.track.enabled);
+      // Label/colour show the ACTION, like the global RUN/STOP button: a playing
+      // track shows red STOP (tap to stop), a stopped track shows green PLAY.
+      playBtn.textContent = this.track.enabled ? 'STOP' : 'PLAY';
+      playBtn.classList.toggle('off', this.track.enabled);
+      playBtn.classList.toggle('on-play', !this.track.enabled);
     };
     renderPlay();
     playBtn.title = 'Play / stop this track';
