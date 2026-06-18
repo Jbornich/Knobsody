@@ -181,6 +181,17 @@ for live standalone use with hardware synthesizers. Desktop only, Chrome/Edge
 4. Persistence (localStorage + JSON export/import), gate-length knob,
    per-track scale selector + Randomize button (scale-quantized notes +
    modes), polish.
+5. Per-track Play/Stop + Mute (Play also runs a track independently of the
+   global transport), green/red step LEDs, tap-tempo BPM readout, per-track
+   Duplicate.
+6. Knob audition (note sounds on press + on every change, in stop or run),
+   lower knob sensitivity, note popup to the left of the knob.
+7. Per-track Swing (off-beat delay) + Probability (per-trigger chance).
+
+Post-v1 polish also shipped: scale changes re-quantize the sequence live;
+fullscreen fit-to-screen scaling (2 columns for 5+ tracks); AudioContext
+pre-warm to remove first-press latency; grouped panel header with a
+Randomize / Undo / Step action column to the right of the steps.
 
 ## Build & deployment
 - `npm run build` must produce TWO usable outputs from the same codebase:

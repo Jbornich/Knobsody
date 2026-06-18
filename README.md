@@ -73,12 +73,25 @@ the Pages subpath (`/Knobsody/`) and the `file://` single-file build.
 ## Per-track controls
 
 - **Knob** — MIDI note per step (drag vertically; double-tap resets to C3).
-- **Switch** — PLAY / MUTE / RESET (RESET shortens the loop → polyrhythm).
+  Turning a knob auditions the pitch and shows a note popup, so steps can be
+  "played" live.
+- **Switch** — PLAY / MUTE / RESET (RESET shortens the loop → polyrhythm). The
+  step LED is green for PLAY, red for MUTE.
+- **Play/Stop + Mute** — per track. Play/Stop starts/stops just that track,
+  independently of the global RUN; Mute keeps it running but silent.
 - **Length** — 8 / 16 / 32 steps.
 - **Gate** — note length, 10–95 % of the step.
-- **Scale** (root + type) + **Randomize** — fills the track with fresh
-  scale-quantized notes and a random PLAY/MUTE pattern; RESET steps are left
-  untouched so the loop length never changes silently.
+- **Scale** (root + type) — re-quantizes the sequence live and drives Randomize.
+- **Swing** — shuffle feel (delays off-beat steps). **Probability** — chance
+  each PLAY step fires.
+- **Randomize / Undo / Step** — to the right of the steps. Randomize fills fresh
+  scale-quantized notes + a random PLAY/MUTE pattern (RESET untouched); Undo
+  reverts the last Randomize; Step advances the track one step while stopped.
+- **Duplicate** — clones the track directly below it.
+
+Global transport: RUN/STOP, a global STEP, a tap-tempo BPM readout,
+clock-out port selection, and fullscreen (scales to fit, 2 columns for 5+
+tracks).
 
 ## Milestones
 
@@ -87,3 +100,12 @@ the Pages subpath (`/Knobsody/`) and the `file://` single-file build.
 - [x] **M3** — Multi-track, per-track port/channel, MIDI clock out
 - [x] **M4** — Persistence (localStorage + JSON export/import), gate-length
   knob, per-track scale selector + Randomize, polish
+- [x] **M5** — Per-track Play/Stop + Mute, green/red step LEDs, tap tempo,
+  per-track Duplicate
+- [x] **M6** — Knob audition (hear/"play" notes), lower knob sensitivity,
+  note popup
+- [x] **M7** — Per-track Swing + Probability
+
+Also: per-track Play runs independently of the global transport; fullscreen
+fit-to-screen scaling (2 columns for 5+ tracks); grouped panel header with a
+Randomize / Undo / Step action column.
