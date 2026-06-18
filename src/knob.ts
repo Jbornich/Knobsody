@@ -1,5 +1,8 @@
 const ANGLE_MIN = -150; // degrees — fully counter-clockwise (min value)
 const ANGLE_MAX = 150;  // degrees — fully clockwise (max value)
+// Max gap between two taps to count as a double-tap (reset to default). Kept
+// tight so auditioning a note twice in a row does not trigger a reset.
+const DOUBLE_TAP_MS = 220;
 
 function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v;
@@ -131,7 +134,7 @@ export class Knob {
 
       // Double-tap / double-click detection
       const now = Date.now();
-      if (now - this.lastTapMs < 350 && this.ptrs.size === 0) {
+      if (now - this.lastTapMs < DOUBLE_TAP_MS && this.ptrs.size === 0) {
         this.setValue(this.cfg.default, true);
         this.lastTapMs = 0;
         return;
